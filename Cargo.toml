@@ -1,0 +1,19 @@
+[package]
+name = "gpui-apple-music-demo"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+readme = "README.md"
+description = "An Apple Music-inspired demo built to show off a GPUI fork"
+
+[dependencies]
+async-channel = "2.5"
+gpui = { git = "https://github.com/cradiy/gpui.git", rev = "8ff979efb41d7b7ed0bb51baa6d43db36d57c173" }
+gpui_effects = { git = "https://github.com/cradiy/gpui.git", rev = "8ff979efb41d7b7ed0bb51baa6d43db36d57c173" }
+gpui_media = { git = "https://github.com/cradiy/gpui.git", rev = "8ff979efb41d7b7ed0bb51baa6d43db36d57c173" }
+gpui_platform = { git = "https://github.com/cradiy/gpui.git", rev = "8ff979efb41d7b7ed0bb51baa6d43db36d57c173", features = [
+  "wayland",
+  "x11",
+] }
+uic = { git = "https://github.com/cradiy/gpui.git", rev = "8ff979efb41d7b7ed0bb51baa6d43db36d57c173" }
+zbus = "5.18"
