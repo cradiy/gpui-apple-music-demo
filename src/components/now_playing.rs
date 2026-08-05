@@ -209,12 +209,17 @@ fn render_window_controls(
                 .gap(px(14.))
                 .child(
                     div()
+                        .w(px(52.))
+                        .h(px(12.))
                         .flex()
                         .items_center()
                         .gap(px(8.))
-                        .child(traffic_light(0xff5f57))
-                        .child(traffic_light(0xfebc2e))
-                        .child(traffic_light(0x28c840)),
+                        .when(cfg!(not(target_os = "macos")), |lights| {
+                            lights
+                                .child(traffic_light(0xff5f57))
+                                .child(traffic_light(0xfebc2e))
+                                .child(traffic_light(0x28c840))
+                        }),
                 )
                 .child(
                     div()

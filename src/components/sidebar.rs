@@ -145,9 +145,12 @@ pub fn render(app: &mut AppleMusicApp, cx: &mut gpui::Context<AppleMusicApp>) ->
                 .items_center()
                 .gap(px(8.))
                 .window_control_area(WindowControlArea::Drag)
-                .child(traffic_light(0xff5f57))
-                .child(traffic_light(0xffbd2e))
-                .child(traffic_light(0x28c840)),
+                .when(cfg!(not(target_os = "macos")), |header| {
+                    header
+                        .child(traffic_light(0xff5f57))
+                        .child(traffic_light(0xffbd2e))
+                        .child(traffic_light(0x28c840))
+                }),
         )
         .child(nav_item(
             "nav-search",

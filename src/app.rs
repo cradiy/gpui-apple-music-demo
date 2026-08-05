@@ -1,15 +1,11 @@
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+#[cfg(target_os = "linux")]
+use std::time::Duration;
+use std::{sync::Arc, time::Instant};
 
 use gpui::{
     AppContext, Entity, Image, Render, Subscription, Window, div, prelude::*, px, rgb, rgba,
 };
-use gpui_media::{
-    AudioPlayer, AudioPlayerEvent, AudioPlayerOptions, AudioSource,
-    PlaybackState as MediaPlaybackState,
-};
+use gpui_media::{AudioPlayer, AudioPlayerEvent, PlaybackState as MediaPlaybackState};
 use uic::components::input::{InputEvent, TextInput};
 
 #[cfg(target_os = "linux")]
@@ -43,7 +39,7 @@ pub struct AppleMusicApp {
 
 impl AppleMusicApp {
     pub fn new(
-        source: AudioSource,
+        player: Entity<AudioPlayer>,
         track: TrackInfo,
         cx: &mut gpui::Context<Self>,
         window: &mut Window,
@@ -56,18 +52,7 @@ impl AppleMusicApp {
         });
         cx.focus_view(&search_input, window);
 
-        let player = cx.new(|cx| {
-            AudioPlayer::new(
-                source,
-                AudioPlayerOptions {
-                    timeline_update_interval: Duration::from_millis(33),
-                    ..AudioPlayerOptions::default()
-                },
-                cx,
-            )
-            .expect("failed to create audio playback session")
-        });
-        let playback = PlaybackState::new(track);
+        let mut playback = PlaybackState::new(track);
         #[cfg(target_os = "linux")]
         let mpris = match MprisBridge::start(&playback) {
             Ok(mpris) => Some(mpris),
@@ -93,7 +78,10 @@ impl AppleMusicApp {
                 AudioPlayerEvent::StateChanged(status) => {
                     app.playback.status = status.clone();
                     app.playback.error = match status {
-                        MediaPlaybackState::Error(error) => Some(error.to_string().into()),
+                        MediaPlaybackState::Error(error) => {
+                            eprintln!("Audio playback failed: {error}");
+                            Some(error.to_string().into())
+                        }
                         _ => None,
                     };
                 }
@@ -112,6 +100,22 @@ impl AppleMusicApp {
             }
             cx.notify();
         });
+
+        // Audio decoding starts as soon as the player entity is created. On a
+        // fast local source it can become ready before this parent subscribes,
+        // so seed the presentation state from the player instead of waiting
+        // for an event that may already have been emitted.
+        {
+            let player = player.read(cx);
+            playback.status = player.state().clone();
+            playback.timeline = player.timeline();
+            playback.volume = player.volume();
+            playback.muted = player.is_muted();
+            playback.error = match player.state() {
+                MediaPlaybackState::Error(error) => Some(error.to_string().into()),
+                _ => None,
+            };
+        }
 
         Self {
             navigation: NavigationState::default(),
@@ -177,6 +181,13 @@ impl AppleMusicApp {
 
 impl Render for AppleMusicApp {
     fn render(&mut self, window: &mut Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+        #[cfg(target_os = "macos")]
+        window.set_traffic_light_position(if self.now_playing {
+            gpui::point(px(17.), px(28.))
+        } else {
+            gpui::point(px(34.), px(34.))
+        });
+
         let width = window.bounds().size.width;
         let height = window.bounds().size.height;
         if self.now_playing {

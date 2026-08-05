@@ -4,12 +4,29 @@ use std::{path::PathBuf, process::ExitCode};
 use app::AppleMusicApp;
 use audio_metadata::read_audio_metadata;
 use gpui::{
-    App, AppContext, Bounds, WindowBackgroundAppearance, WindowBounds, WindowOptions, px, size,
+    App, AppContext, Bounds, TitlebarOptions, WindowBackgroundAppearance, WindowBounds,
+    WindowOptions, point, px, size,
 };
-use gpui_media::AudioSource;
+use gpui_media::{AudioPlayer, AudioPlayerOptions, AudioSource};
 use gpui_platform::application;
 use state::TrackInfo;
+use std::time::Duration;
 use uic::assets::LucideAssets;
+
+fn titlebar() -> Option<TitlebarOptions> {
+    #[cfg(target_os = "macos")]
+    {
+        Some(TitlebarOptions {
+            appears_transparent: true,
+            traffic_light_position: Some(point(px(34.), px(34.))),
+            ..Default::default()
+        })
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        None
+    }
+}
 
 fn main() -> ExitCode {
     let Some(path) = std::env::args_os().nth(1).map(PathBuf::from) else {
@@ -50,13 +67,24 @@ fn main() -> ExitCode {
             cx.open_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
-                    titlebar: None,
+                    titlebar: titlebar(),
                     window_background: WindowBackgroundAppearance::Transparent,
                     ..Default::default()
                 },
                 move |window, cx| {
                     gpui_apple_music_demo::window::remove_frame(window);
-                    cx.new(|cx| AppleMusicApp::new(source, track, cx, window))
+                    let player = cx.new(|cx| {
+                        AudioPlayer::new(
+                            source,
+                            AudioPlayerOptions {
+                                timeline_update_interval: Duration::from_millis(33),
+                                ..AudioPlayerOptions::default()
+                            },
+                            cx,
+                        )
+                        .expect("failed to create audio playback session")
+                    });
+                    cx.new(|cx| AppleMusicApp::new(player, track, cx, window))
                 },
             )
             .expect("failed to open Apple Music demo");
