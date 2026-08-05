@@ -57,7 +57,9 @@ pub fn render(
     div()
         .relative()
         .size_full()
-        .font_family(crate::FONT_FAMILY)
+        .when(cfg!(target_os = "linux"), |this| {
+            this.font_family(crate::FONT_FAMILY)
+        })
         .overflow_hidden()
         .rounded(px(22.))
         .text_color(rgba(0xffffffff))

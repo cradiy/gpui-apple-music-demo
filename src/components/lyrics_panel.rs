@@ -129,7 +129,9 @@ fn render_panel(
     div()
         .relative()
         .h_full()
-        .font_family(crate::FONT_FAMILY)
+        .when(cfg!(target_os = "linux"), |this| {
+            this.font_family(crate::FONT_FAMILY)
+        })
         .flex_none()
         .flex()
         .flex_col()

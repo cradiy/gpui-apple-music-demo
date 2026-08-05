@@ -1,4 +1,4 @@
-use gpui::{MouseButton, div, prelude::*, px, rgba, svg};
+use gpui::{WindowControlArea, div, prelude::*, px, rgba, svg};
 use uic::{
     assets::LucideIcons,
     components::input::{Input, InputAppearance},
@@ -30,9 +30,7 @@ fn drag_region() -> impl IntoElement {
     div()
         .h_full()
         .flex_1()
-        .on_mouse_down(MouseButton::Left, |_, window, _| {
-            window.start_window_move();
-        })
+        .window_control_area(WindowControlArea::Drag)
 }
 
 pub fn render(

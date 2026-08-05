@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use gpui::{
-    FontWeight, MouseButton, div, linear_color_stop, linear_gradient, prelude::*, px, rgb, rgba,
-    svg,
+    FontWeight, WindowControlArea, div, linear_color_stop, linear_gradient, prelude::*, px, rgb,
+    rgba, svg,
 };
 use gpui_effects::{GlassMaterial, GlassPanel};
 use uic::assets::LucideIcons;
@@ -144,9 +144,7 @@ pub fn render(app: &mut AppleMusicApp, cx: &mut gpui::Context<AppleMusicApp>) ->
                 .flex()
                 .items_center()
                 .gap(px(8.))
-                .on_mouse_down(MouseButton::Left, |_, window, _| {
-                    window.start_window_move();
-                })
+                .window_control_area(WindowControlArea::Drag)
                 .child(traffic_light(0xff5f57))
                 .child(traffic_light(0xffbd2e))
                 .child(traffic_light(0x28c840)),

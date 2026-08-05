@@ -3,8 +3,10 @@ use std::{path::PathBuf, process::ExitCode};
 
 use app::AppleMusicApp;
 use audio_metadata::read_audio_metadata;
-use gpui::{App, AppContext, Bounds, WindowBounds, WindowOptions, px, size};
-use gpui_media::MediaSource;
+use gpui::{
+    App, AppContext, Bounds, WindowBackgroundAppearance, WindowBounds, WindowOptions, px, size,
+};
+use gpui_media::AudioSource;
 use gpui_platform::application;
 use state::TrackInfo;
 use uic::assets::LucideAssets;
@@ -14,7 +16,7 @@ fn main() -> ExitCode {
         eprintln!("Usage: gpui-apple-music-demo <audio-file>");
         return ExitCode::from(2);
     };
-    let source = match MediaSource::from_path(&path) {
+    let source = match AudioSource::from_path(&path) {
         Ok(source) => source,
         Err(error) => {
             eprintln!("Unable to open {}: {error}", path.display());
@@ -49,9 +51,13 @@ fn main() -> ExitCode {
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
                     titlebar: None,
+                    window_background: WindowBackgroundAppearance::Transparent,
                     ..Default::default()
                 },
-                move |w, cx| cx.new(|cx| AppleMusicApp::new(source, track, cx, w)),
+                move |window, cx| {
+                    gpui_apple_music_demo::window::remove_frame(window);
+                    cx.new(|cx| AppleMusicApp::new(source, track, cx, window))
+                },
             )
             .expect("failed to open Apple Music demo");
             cx.activate(true);

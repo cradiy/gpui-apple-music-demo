@@ -6,5 +6,6 @@ pub mod lyrics;
 pub mod mpris;
 pub mod state;
 pub mod theme;
+pub mod window;
 
 static FONT_FAMILY: &str = "Noto Sans CJK SC";

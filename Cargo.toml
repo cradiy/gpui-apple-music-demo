@@ -8,12 +8,19 @@ description = "An Apple Music-inspired demo built to show off a GPUI fork"
 
 [dependencies]
 async-channel = "2.5"
-gpui = { git = "https://github.com/cradiy/gpui.git", rev = "8ff979efb41d7b7ed0bb51baa6d43db36d57c173" }
-gpui_effects = { git = "https://github.com/cradiy/gpui.git", rev = "8ff979efb41d7b7ed0bb51baa6d43db36d57c173" }
-gpui_media = { git = "https://github.com/cradiy/gpui.git", rev = "8ff979efb41d7b7ed0bb51baa6d43db36d57c173" }
-gpui_platform = { git = "https://github.com/cradiy/gpui.git", rev = "8ff979efb41d7b7ed0bb51baa6d43db36d57c173", features = [
+gpui = { git = "https://github.com/cradiy/gpui.git", rev = "8eadb3b20c91861e1f2db848c2b8cbb6ece3bf3e" }
+gpui_effects = { git = "https://github.com/cradiy/gpui.git", rev = "8eadb3b20c91861e1f2db848c2b8cbb6ece3bf3e" }
+gpui_media = { git = "https://github.com/cradiy/gpui.git", rev = "8eadb3b20c91861e1f2db848c2b8cbb6ece3bf3e" , default-features = false , features = ["audio"] }
+gpui_platform = { git = "https://github.com/cradiy/gpui.git", rev = "8eadb3b20c91861e1f2db848c2b8cbb6ece3bf3e", features = [
   "wayland",
   "x11",
 ] }
-uic = { git = "https://github.com/cradiy/gpui.git", rev = "8ff979efb41d7b7ed0bb51baa6d43db36d57c173" }
+uic = { git = "https://github.com/cradiy/gpui.git", rev = "8eadb3b20c91861e1f2db848c2b8cbb6ece3bf3e" }
 zbus = "5.18"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+raw-window-handle = "0.6"
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Dwm",
+] }

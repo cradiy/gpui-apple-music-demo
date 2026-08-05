@@ -7,8 +7,8 @@ use gpui::{
     AppContext, Entity, Image, Render, Subscription, Window, div, prelude::*, px, rgb, rgba,
 };
 use gpui_media::{
-    MediaSource, PlaybackState as MediaPlaybackState, SeekMode, VideoPlayer, VideoPlayerEvent,
-    VideoPlayerOptions,
+    AudioPlayer, AudioPlayerEvent, AudioPlayerOptions, AudioSource,
+    PlaybackState as MediaPlaybackState,
 };
 use uic::components::input::{InputEvent, TextInput};
 
@@ -19,6 +19,8 @@ use crate::{
     state::{NavigationState, Page, PlaybackState, TrackInfo},
     theme::layout,
 };
+#[cfg(target_os = "linux")]
+use gpui_media::SeekMode;
 
 pub struct EffectsViewer {
     pub album_cover: Arc<Image>,
@@ -28,7 +30,7 @@ pub struct EffectsViewer {
 pub struct AppleMusicApp {
     pub navigation: NavigationState,
     pub playback: PlaybackState,
-    pub player: Entity<VideoPlayer>,
+    pub player: Entity<AudioPlayer>,
     pub effects_viewer: Option<EffectsViewer>,
     pub search_input: Entity<TextInput>,
     pub now_playing: bool,
@@ -41,7 +43,7 @@ pub struct AppleMusicApp {
 
 impl AppleMusicApp {
     pub fn new(
-        source: MediaSource,
+        source: AudioSource,
         track: TrackInfo,
         cx: &mut gpui::Context<Self>,
         window: &mut Window,
@@ -55,13 +57,12 @@ impl AppleMusicApp {
         cx.focus_view(&search_input, window);
 
         let player = cx.new(|cx| {
-            VideoPlayer::new_in_window(
+            AudioPlayer::new(
                 source,
-                VideoPlayerOptions {
+                AudioPlayerOptions {
                     timeline_update_interval: Duration::from_millis(33),
-                    ..VideoPlayerOptions::default()
+                    ..AudioPlayerOptions::default()
                 },
-                window,
                 cx,
             )
             .expect("failed to create audio playback session")
@@ -87,19 +88,19 @@ impl AppleMusicApp {
             })
             .detach();
         }
-        let player_subscription = cx.subscribe(&player, |app, _, event: &VideoPlayerEvent, cx| {
+        let player_subscription = cx.subscribe(&player, |app, _, event: &AudioPlayerEvent, cx| {
             match event {
-                VideoPlayerEvent::StateChanged(status) => {
+                AudioPlayerEvent::StateChanged(status) => {
                     app.playback.status = status.clone();
                     app.playback.error = match status {
                         MediaPlaybackState::Error(error) => Some(error.to_string().into()),
                         _ => None,
                     };
                 }
-                VideoPlayerEvent::TimelineChanged(timeline) => {
+                AudioPlayerEvent::TimelineChanged(timeline) => {
                     app.playback.timeline = *timeline;
                 }
-                VideoPlayerEvent::VolumeChanged { volume, muted } => {
+                AudioPlayerEvent::VolumeChanged { volume, muted } => {
                     app.playback.volume = *volume;
                     app.playback.muted = *muted;
                 }
@@ -131,16 +132,20 @@ impl AppleMusicApp {
     fn handle_mpris_command(&mut self, command: MprisCommand, cx: &mut gpui::Context<Self>) {
         let result = self.player.update(cx, |player, cx| match command {
             MprisCommand::Play => player.play(cx),
-            MprisCommand::Pause => player.pause(cx),
+            MprisCommand::Pause => {
+                player.pause(cx);
+                Ok(())
+            }
             MprisCommand::PlayPause => player.toggle_playback(cx),
             MprisCommand::Stop => player.stop(cx),
             MprisCommand::Seek(offset) => {
                 let amount = Duration::from_micros(offset.unsigned_abs());
-                if offset >= 0 {
-                    player.skip_forward(amount, SeekMode::Accurate, cx)
+                let position = if offset >= 0 {
+                    player.position().saturating_add(amount)
                 } else {
-                    player.skip_backward(amount, SeekMode::Accurate, cx)
-                }
+                    player.position().saturating_sub(amount)
+                };
+                player.seek_to(position, SeekMode::Accurate, cx)
             }
             MprisCommand::SetPosition(position) => player.seek_to(
                 Duration::from_micros(position.max(0) as u64),
@@ -152,12 +157,16 @@ impl AppleMusicApp {
                 player.set_volume(volume, cx);
                 Ok(())
             }
-            MprisCommand::Next => {
-                player.skip_forward(Duration::from_secs(10), SeekMode::Accurate, cx)
-            }
-            MprisCommand::Previous => {
-                player.skip_backward(Duration::from_secs(10), SeekMode::Accurate, cx)
-            }
+            MprisCommand::Next => player.seek_to(
+                player.position().saturating_add(Duration::from_secs(10)),
+                SeekMode::Accurate,
+                cx,
+            ),
+            MprisCommand::Previous => player.seek_to(
+                player.position().saturating_sub(Duration::from_secs(10)),
+                SeekMode::Accurate,
+                cx,
+            ),
         });
         if let Err(error) = result {
             self.playback.error = Some(error.to_string().into());
@@ -179,10 +188,14 @@ impl Render for AppleMusicApp {
 
         div()
             .size_full()
-            .font_family(crate::FONT_FAMILY)
+            .when(cfg!(target_os = "linux"), |this| {
+                this.font_family(crate::FONT_FAMILY)
+            })
             .flex()
             .overflow_hidden()
-            .rounded(px(22.))
+            .when(cfg!(not(target_os = "windows")), |root| {
+                root.rounded(px(22.))
+            })
             .bg(rgb(0x20222e))
             .border_1()
             .border_color(rgba(0x00000045))

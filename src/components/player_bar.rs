@@ -101,8 +101,8 @@ pub fn render(
                     icon_button("skip-back", LucideIcons::SkipBack, true).on_click(cx.listener(
                         |app, _, _, cx| {
                             let result = app.player.update(cx, |player, cx| {
-                                player.skip_backward(
-                                    Duration::from_secs(10),
+                                player.seek_to(
+                                    player.position().saturating_sub(Duration::from_secs(10)),
                                     SeekMode::Accurate,
                                     cx,
                                 )
@@ -152,7 +152,11 @@ pub fn render(
                     icon_button("skip-forward", LucideIcons::SkipForward, true).on_click(
                         cx.listener(|app, _, _, cx| {
                             let result = app.player.update(cx, |player, cx| {
-                                player.skip_forward(Duration::from_secs(10), SeekMode::Accurate, cx)
+                                player.seek_to(
+                                    player.position().saturating_add(Duration::from_secs(10)),
+                                    SeekMode::Accurate,
+                                    cx,
+                                )
                             });
                             if let Err(error) = result {
                                 app.playback.error = Some(error.to_string().into());
@@ -465,7 +469,11 @@ pub fn render_now_playing(
                     )
                     .on_click(cx.listener(|app, _, _, cx| {
                         let result = app.player.update(cx, |player, cx| {
-                            player.skip_backward(Duration::from_secs(10), SeekMode::Accurate, cx)
+                            player.seek_to(
+                                player.position().saturating_sub(Duration::from_secs(10)),
+                                SeekMode::Accurate,
+                                cx,
+                            )
                         });
                         if let Err(error) = result {
                             app.playback.error = Some(error.to_string().into());
@@ -512,7 +520,11 @@ pub fn render_now_playing(
                     )
                     .on_click(cx.listener(|app, _, _, cx| {
                         let result = app.player.update(cx, |player, cx| {
-                            player.skip_forward(Duration::from_secs(10), SeekMode::Accurate, cx)
+                            player.seek_to(
+                                player.position().saturating_add(Duration::from_secs(10)),
+                                SeekMode::Accurate,
+                                cx,
+                            )
                         });
                         if let Err(error) = result {
                             app.playback.error = Some(error.to_string().into());
