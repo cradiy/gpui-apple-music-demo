@@ -7,21 +7,39 @@ readme = "README.md"
 description = "An Apple Music-inspired demo built to show off a GPUI fork"
 
 [dependencies]
+anyhow = "1"
 async-channel = "2.5"
-gpui = { git = "https://github.com/cradiy/gpui.git", rev = "18856bd9bb370a4f6cc58452705d24479b7c96b9" }
-gpui_effects = { git = "https://github.com/cradiy/gpui.git", rev = "18856bd9bb370a4f6cc58452705d24479b7c96b9" }
-gpui_media = { git = "https://github.com/cradiy/gpui.git", rev = "18856bd9bb370a4f6cc58452705d24479b7c96b9", default-features = false, features = ["audio"] }
-gpui_platform = { git = "https://github.com/cradiy/gpui.git", rev = "18856bd9bb370a4f6cc58452705d24479b7c96b9", features = [
+dirs = "6"
+flexi_logger = { version = "0.31", features = ["colors"] }
+gpui = { git = "https://github.com/cradiy/gpui.git", rev = "e3a3869e38b68b48035eb9b0c82df768e715ba81" }
+gpui_effects = { git = "https://github.com/cradiy/gpui.git", rev = "e3a3869e38b68b48035eb9b0c82df768e715ba81" }
+gpui_media = { git = "https://github.com/cradiy/gpui.git", rev = "e3a3869e38b68b48035eb9b0c82df768e715ba81", default-features = false, features = [
+  "audio",
+] }
+gpui_platform = { git = "https://github.com/cradiy/gpui.git", rev = "e3a3869e38b68b48035eb9b0c82df768e715ba81", features = [
   "font-kit",
   "wayland",
   "x11",
 ] }
-uic = { git = "https://github.com/cradiy/gpui.git", rev = "18856bd9bb370a4f6cc58452705d24479b7c96b9" }
+gpui_tokio = { git = "https://github.com/cradiy/gpui.git", rev = "e3a3869e38b68b48035eb9b0c82df768e715ba81" }
+uic = { git = "https://github.com/cradiy/gpui.git", rev = "e3a3869e38b68b48035eb9b0c82df768e715ba81" }
+
+log = "0.4"
+rust-embed = "8.12.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1.53.1", features = ["fs", "io-util", "macros", "sync"] }
+toml = "1.1"
+uuid = { version = "1.24.0", features = ["v4"] }
 zbus = "5.18"
+
+[dev-dependencies]
+tempfile = "3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 raw-window-handle = "0.6"
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
   "Win32_Graphics_Dwm",
+  "Win32_Storage_FileSystem",
 ] }

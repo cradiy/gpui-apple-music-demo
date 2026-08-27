@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="icon-play" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M8.35 5.08c0-.98 1.08-1.57 1.9-1.03l9.07 5.92a1.23 1.23 0 0 1 0 2.06l-9.07 5.92c-.82.54-1.9-.05-1.9-1.03V5.08Z"/>
+  </symbol>
+  <symbol id="icon-pause" viewBox="0 0 24 24">
+    <rect x="6.25" y="4" width="4.25" height="16" rx="1.35" fill="currentColor"/>
+    <rect x="13.5" y="4" width="4.25" height="16" rx="1.35" fill="currentColor"/>
+  </symbol>
+  <symbol id="icon-next" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M4.4 5.52c0-.82.91-1.3 1.58-.82l7.3 5.21a1.28 1.28 0 0 1 0 2.18l-7.3 5.21c-.67.48-1.58 0-1.58-.82V5.52Z"/>
+    <path fill="currentColor" d="M10.72 5.52c0-.82.91-1.3 1.58-.82l7.3 5.21a1.28 1.28 0 0 1 0 2.18l-7.3 5.21c-.67.48-1.58 0-1.58-.82V5.52Z"/>
+  </symbol>
+  <symbol id="icon-previous" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M19.6 5.52c0-.82-.91-1.3-1.58-.82l-7.3 5.21a1.28 1.28 0 0 0 0 2.18l7.3 5.21c.67.48 1.58 0 1.58-.82V5.52Z"/>
+    <path fill="currentColor" d="M13.28 5.52c0-.82-.91-1.3-1.58-.82l-7.3 5.21a1.28 1.28 0 0 0 0 2.18l7.3 5.21c.67.48 1.58 0 1.58-.82V5.52Z"/>
+  </symbol>
+</svg>

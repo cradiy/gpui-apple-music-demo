@@ -1,24 +1,23 @@
-use gpui_apple_music_demo::*;
-use std::{path::PathBuf, process::ExitCode};
-
-use app::AppleMusicApp;
-use audio_metadata::read_audio_metadata;
+use flexi_logger::{
+    Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, colored_detailed_format,
+    detailed_format,
+};
 use gpui::{
     App, AppContext, Bounds, TitlebarOptions, WindowBackgroundAppearance, WindowBounds,
-    WindowOptions, point, px, size,
+    WindowOptions, px, size,
 };
-use gpui_media::{AudioPlayer, AudioPlayerOptions, AudioSource};
-use gpui_platform::application;
-use state::TrackInfo;
-use std::time::Duration;
-use uic::assets::LucideAssets;
+use gpui_apple_music_demo::{
+    app::MusicApp, resources::assets::AppAssets, services::config::LoadedClientConfig,
+    services::session::SessionStore,
+};
+use std::{fs, process::ExitCode};
 
 fn titlebar() -> Option<TitlebarOptions> {
     #[cfg(target_os = "macos")]
     {
         Some(TitlebarOptions {
             appears_transparent: true,
-            traffic_light_position: Some(point(px(34.), px(34.))),
+            traffic_light_position: Some(gpui::point(px(34.), px(34.))),
             ..Default::default()
         })
     }
@@ -28,67 +27,85 @@ fn titlebar() -> Option<TitlebarOptions> {
     }
 }
 
-fn main() -> ExitCode {
-    let Some(path) = std::env::args_os().nth(1).map(PathBuf::from) else {
-        eprintln!("Usage: gpui-apple-music-demo <audio-file>");
-        return ExitCode::from(2);
-    };
-    let source = match AudioSource::from_path(&path) {
-        Ok(source) => source,
+#[tokio::main]
+async fn main() -> ExitCode {
+    let loaded_config = match LoadedClientConfig::load_default() {
+        Ok(config) => config,
         Err(error) => {
-            eprintln!("Unable to open {}: {error}", path.display());
+            eprintln!("Unable to load Romus Demo configuration: {error:#}");
             return ExitCode::FAILURE;
         }
     };
-    let metadata = match read_audio_metadata(&path) {
-        Ok(metadata) => metadata,
+    if let Err(error) = initialize_logger(&loaded_config) {
+        eprintln!("Unable to initialize Romus Demo logging: {error:#}");
+        return ExitCode::FAILURE;
+    }
+    log::info!(
+        "loaded local player config from {}",
+        loaded_config.path.display()
+    );
+    let session_store = match SessionStore::load_default() {
+        Ok(store) => store,
         Err(error) => {
-            eprintln!(
-                "Unable to read embedded metadata from {}: {error}",
-                path.display()
-            );
-            Default::default()
+            eprintln!("Unable to initialize Romus Demo session storage: {error:#}");
+            return ExitCode::FAILURE;
         }
     };
-    let track = TrackInfo::from_metadata(&path, metadata);
-
     if let Err(error) = gpui_media::init() {
         eprintln!("Unable to initialize audio playback: {error}");
         return ExitCode::FAILURE;
     }
-
-    application()
-        .with_assets(LucideAssets::new())
+    gpui_platform::application()
+        .with_assets(AppAssets::new())
         .run(move |cx: &mut App| {
-            uic::components::input::init(cx);
+            gpui_tokio::init(cx);
+            cx.set_global(loaded_config.clone());
+            cx.set_global(session_store.clone());
+            uic::init(cx);
             let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
-            let source = source.clone();
-            let track = track.clone();
             cx.open_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
                     titlebar: titlebar(),
                     window_background: WindowBackgroundAppearance::Transparent,
+                    app_id: Some("romus demo".to_owned()),
                     ..Default::default()
                 },
                 move |window, cx| {
+                    window.set_window_title("Romus Demo");
                     gpui_apple_music_demo::window::remove_frame(window);
-                    let player = cx.new(|cx| {
-                        AudioPlayer::new(
-                            source,
-                            AudioPlayerOptions {
-                                timeline_update_interval: Duration::from_millis(33),
-                                ..AudioPlayerOptions::default()
-                            },
-                            cx,
-                        )
-                        .expect("failed to create audio playback session")
-                    });
-                    cx.new(|cx| AppleMusicApp::new(player, track, cx, window))
+                    cx.new(|cx| MusicApp::new(window, cx))
                 },
             )
-            .expect("failed to open Apple Music demo");
+            .expect("failed to open Romus Demo");
             cx.activate(true);
         });
     ExitCode::SUCCESS
+}
+
+fn initialize_logger(config: &LoadedClientConfig) -> anyhow::Result<()> {
+    let log_directory = config.log_directory()?;
+    fs::create_dir_all(&log_directory)?;
+    let duplicate = if config.config.logging.console {
+        Duplicate::All
+    } else {
+        Duplicate::None
+    };
+    Logger::try_with_env_or_str(&config.config.logging.filter)?
+        .log_to_file(
+            FileSpec::default()
+                .directory(log_directory)
+                .basename("romus-demo"),
+        )
+        .duplicate_to_stdout(duplicate)
+        .format_for_stdout(colored_detailed_format)
+        .format_for_files(detailed_format)
+        .set_palette("196;208;40;39;244".to_string())
+        .rotate(
+            Criterion::Size(config.config.logging.max_file_size_bytes),
+            Naming::Numbers,
+            Cleanup::KeepLogFiles(config.config.logging.retained_files),
+        )
+        .start()?;
+    Ok(())
 }

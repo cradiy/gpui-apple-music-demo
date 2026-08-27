@@ -1,0 +1,526 @@
+use std::{sync::Arc, time::Instant};
+
+use gpui::{
+    AnyElement, ClipboardItem, Div, FontWeight, Image, ImageFormat, MouseButton, ObjectFit,
+    SharedString, Stateful, Window, div, img, prelude::*, px, rgb, rgba, svg,
+};
+use gpui_effects::album_glow;
+use uic::{
+    assets::LucideIcons,
+    components::{
+        context_menu::{self, ContextMenu},
+        toast,
+    },
+};
+
+use crate::{
+    app::music_shell::{EffectsViewer, MusicShell, pages::songs},
+    domain::Page,
+    resources::RomusIcons,
+    services::api::TrackResponse,
+    ui::{
+        components::{lyrics_panel, player_bar, queue_panel},
+        strings, theme,
+    },
+};
+
+const FALLBACK_COVER: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff375f"/><stop offset=".5" stop-color="#6e5bff"/><stop offset="1" stop-color="#10131d"/></linearGradient></defs>
+<rect width="800" height="800" rx="120" fill="url(#g)"/><path d="M510 175v360c0 74-60 134-134 134s-134-60-134-134 60-134 134-134c28 0 54 9 75 23V232l59-57z" fill="white" fill-opacity=".9"/>
+</svg>"##;
+
+pub fn render(
+    app: &mut MusicShell,
+    window: &mut Window,
+    window_width: f32,
+    window_height: f32,
+    cx: &mut gpui::Context<MusicShell>,
+) -> AnyElement {
+    let (playback, current_track) = {
+        let controller = app.playback.read(cx);
+        (
+            controller.snapshot.clone(),
+            controller.queue.current().cloned(),
+        )
+    };
+    let artwork = playback_artwork(&playback);
+    let track_id = current_track.as_ref().map(|track| track.id.clone());
+    let (effect_artwork, background_time) = {
+        let needs_refresh = app.effects_viewer.as_ref().is_none_or(|effect| {
+            effect.track_id != track_id || !Arc::ptr_eq(&effect.album_cover, &artwork)
+        });
+        if needs_refresh {
+            app.effects_viewer = Some(EffectsViewer {
+                track_id,
+                album_cover: artwork.clone(),
+                started_at: Instant::now(),
+            });
+        }
+        let effect = app
+            .effects_viewer
+            .as_ref()
+            .expect("effects viewer initialized");
+        (
+            effect.album_cover.clone(),
+            effect.started_at.elapsed().as_secs_f32(),
+        )
+    };
+    let title = playback.track.title.clone();
+    let artist = playback.track.artist.clone();
+    let subtitle = playback
+        .track
+        .album
+        .as_ref()
+        .map(|album| format!("{artist} — {album}"))
+        .unwrap_or_else(|| artist.to_string());
+    let show_lyrics = app.now_playing_lyrics;
+    let cover_size = (window_height - 310.)
+        .min(window_width * 0.30)
+        .clamp(280., 430.);
+    let queue_height = (cover_size + 120.).min(window_height - 190.).max(420.);
+    let favorite = current_track.as_ref().is_some_and(|track| track.favorite);
+    let side_panel = if show_lyrics {
+        div()
+            .h_full()
+            .flex_1()
+            .min_w(px(390.))
+            .max_w(px(650.))
+            .child(lyrics_panel::render_fullscreen(
+                &playback,
+                &mut app.lyrics_panel,
+                app.playback.clone(),
+            ))
+            .into_any_element()
+    } else {
+        div()
+            .w(px(650.))
+            .h(px(queue_height))
+            .flex_none()
+            .flex()
+            .justify_center()
+            .overflow_hidden()
+            .child(
+                div()
+                    .w(px(520.))
+                    .h_full()
+                    .child(queue_panel::render_now_playing(app, window, cx)),
+            )
+            .into_any_element()
+    };
+
+    div()
+        .relative()
+        .size_full()
+        .overflow_hidden()
+        .rounded(px(22.))
+        .text_color(rgba(0xffffffff))
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .right_0()
+                .bottom_0()
+                .left_0()
+                .overflow_hidden()
+                .child(album_glow(effect_artwork).time(background_time).size_full()),
+        )
+        .child(
+            div()
+                .relative()
+                .size_full()
+                .px(px(if show_lyrics { 72. } else { 48. }))
+                .pt(px(82.))
+                .pb(px(62.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .gap(px(92.))
+                .child(
+                    div()
+                        .w(px(cover_size))
+                        .flex_none()
+                        .flex()
+                        .flex_col()
+                        .child(
+                            div()
+                                .size(px(cover_size))
+                                .flex_none()
+                                .overflow_hidden()
+                                .rounded_3xl()
+                                .shadow(vec![
+                                    gpui::BoxShadow::new(px(0.), px(24.), rgba(0x0000005e).into())
+                                        .blur_radius(px(52.))
+                                        .spread_radius(px(-15.)),
+                                ])
+                                .child(
+                                    img(artwork)
+                                        .size_full()
+                                        .rounded_3xl()
+                                        .object_fit(ObjectFit::Cover),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .w_full()
+                                .mt(px(18.))
+                                .flex()
+                                .items_center()
+                                .justify_between()
+                                .child(
+                                    div()
+                                        .min_w_0()
+                                        .flex_1()
+                                        .child(
+                                            div()
+                                                .truncate()
+                                                .text_size(px(14.))
+                                                .font_weight(FontWeight::BOLD)
+                                                .child(title),
+                                        )
+                                        .child(
+                                            div()
+                                                .mt(px(3.))
+                                                .truncate()
+                                                .text_size(px(11.5))
+                                                .font_weight(FontWeight::MEDIUM)
+                                                .text_color(rgba(0xffffffad))
+                                                .child(subtitle),
+                                        ),
+                                )
+                                .child(
+                                    div()
+                                        .ml(px(16.))
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(9.))
+                                        .child(
+                                            round_icon_button(
+                                                "favorite-track",
+                                                if favorite {
+                                                    RomusIcons::FillStar.path()
+                                                } else {
+                                                    LucideIcons::Star.path()
+                                                },
+                                                20.,
+                                                favorite,
+                                                current_track.is_some(),
+                                            )
+                                            .when(
+                                                current_track.is_some(),
+                                                |button| {
+                                                    button.on_click(cx.listener(|app, _, _, cx| {
+                                                        app.toggle_current_favorite(cx);
+                                                    }))
+                                                },
+                                            ),
+                                        )
+                                        .child(
+                                            round_icon_button(
+                                                "track-actions",
+                                                LucideIcons::Ellipsis,
+                                                22.,
+                                                false,
+                                                current_track.is_some(),
+                                            )
+                                            .when_some(current_track.clone(), |button, track| {
+                                                let entity = cx.entity();
+                                                button.on_mouse_down(
+                                                    MouseButton::Left,
+                                                    move |event, window, cx| {
+                                                        let menu = now_playing_track_menu(
+                                                            entity.clone(),
+                                                            track.clone(),
+                                                        );
+                                                        let _ = context_menu::show(
+                                                            menu,
+                                                            event.position,
+                                                            window,
+                                                            cx,
+                                                        );
+                                                        cx.stop_propagation();
+                                                    },
+                                                )
+                                            }),
+                                        ),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .w_full()
+                                .mt(px(18.))
+                                .child(player_bar::render_now_playing(app, cx, rgba(0xffffffff))),
+                        ),
+                )
+                .child(side_panel),
+        )
+        .child(render_window_controls(app, cx))
+        .child(render_view_switcher(app, cx))
+        .into_any_element()
+}
+
+fn render_window_controls(_app: &mut MusicShell, cx: &mut gpui::Context<MusicShell>) -> AnyElement {
+    div()
+        .absolute()
+        .top(px(18.))
+        .left(px(18.))
+        .right(px(18.))
+        .h(px(34.))
+        .flex()
+        .items_center()
+        .justify_between()
+        .child(
+            div()
+                .flex()
+                .group("playing-div")
+                .items_center()
+                .gap(px(14.))
+                .child(
+                    div()
+                        .h(px(32.))
+                        .px(px(7.))
+                        .flex()
+                        .invisible()
+                        .group_hover("playing-div", |this| this.visible())
+                        .id("close-now-playing-div")
+                        .items_center()
+                        .gap(px(8.))
+                        .hover(|this| this.bg(rgba(0xffffff2a)))
+                        .rounded_full()
+                        .child(top_icon_button("close-now-playing", LucideIcons::X))
+                        .on_click(cx.listener(|app, _, _, cx| {
+                            app.now_playing = false;
+                            cx.notify();
+                        })),
+                )
+                .child(
+                    div()
+                        .h(px(32.))
+                        .px(px(7.))
+                        .flex()
+                        .invisible()
+                        .items_center()
+                        .group_hover("playing-div", |this| this.visible())
+                        .gap(px(8.))
+                        .hover(|this| this.bg(rgba(0xffffff2a)))
+                        .rounded_full()
+                        .child(
+                            top_icon_button("mini-now-playing", LucideIcons::PictureInPicture2)
+                                .on_click(cx.listener(|app, _, window, cx| {
+                                    app.enter_mini_player(window, cx);
+                                })),
+                        ),
+                ),
+        )
+        .into_any_element()
+}
+
+fn render_view_switcher(app: &mut MusicShell, cx: &mut gpui::Context<MusicShell>) -> AnyElement {
+    div()
+        .absolute()
+        .right(px(18.))
+        .bottom(px(16.))
+        .h(px(36.))
+        .px(px(5.))
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .rounded_full()
+        .bg(rgba(0xffffff2a))
+        .border_1()
+        .border_color(rgba(0xffffff1a))
+        .child(
+            div()
+                .id("toggle-now-playing-lyrics")
+                .size(px(27.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded_full()
+                .cursor_pointer()
+                .when(app.now_playing_lyrics, |button| button.bg(rgba(0xffffff24)))
+                .hover(|style| style.bg(rgba(0xffffff20)))
+                .on_click(cx.listener(|app, _, _, cx| {
+                    app.now_playing_lyrics = true;
+                    cx.notify();
+                }))
+                .child(
+                    svg()
+                        .path(LucideIcons::MicVocal)
+                        .size(px(20.))
+                        .text_color(rgba(0xffffffff)),
+                ),
+        )
+        .child(
+            div()
+                .id("now-playing-queue")
+                .size(px(27.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded_full()
+                .cursor_pointer()
+                .when(!app.now_playing_lyrics, |button| {
+                    button.bg(rgba(0xffffff24))
+                })
+                .hover(|style| style.bg(rgba(0xffffff20)))
+                .on_click(cx.listener(|app, _, _, cx| {
+                    app.now_playing_lyrics = false;
+                    cx.notify();
+                }))
+                .child(
+                    svg()
+                        .path(LucideIcons::ListMusic)
+                        .size(px(20.))
+                        .text_color(rgba(0xffffffe3)),
+                ),
+        )
+        .into_any_element()
+}
+
+fn round_icon_button(
+    id: &'static str,
+    icon: impl Into<SharedString>,
+    icon_size: f32,
+    active: bool,
+    enabled: bool,
+) -> Stateful<Div> {
+    div()
+        .id(id)
+        .size(px(36.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_full()
+        .when(enabled, |button| {
+            button
+                .cursor_pointer()
+                .bg(rgba(0xffffff13))
+                .hover(|style| style.bg(rgba(0xffffff22)))
+        })
+        .when(!enabled, |button| button.opacity(0.42))
+        .when(active, |button| button.bg(rgba(0xffffff22)))
+        .child(svg().path(icon).size(px(icon_size)).text_color(if active {
+            rgb(0xffffffff)
+        } else {
+            rgba(0xffffffe5)
+        }))
+}
+
+fn top_icon_button(id: &'static str, icon: LucideIcons) -> Stateful<Div> {
+    div()
+        .id(id)
+        .size(px(25.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_full()
+        .cursor_pointer()
+        .child(svg().path(icon).size(px(20.)).text_color(rgba(0xffffffff)))
+}
+
+fn now_playing_track_menu(entity: gpui::Entity<MusicShell>, track: TrackResponse) -> ContextMenu {
+    let info_track = track.clone();
+    let next_track = track.clone();
+    let enqueue_track = track.clone();
+    let copy_track = track.clone();
+    let artist_id = track.artist_id.clone();
+    let album_id = track.album_id.clone();
+    let like_label = if track.favorite { "Unlike" } else { "Like" };
+    let favorite_entity = entity.clone();
+    let next_entity = entity.clone();
+    let enqueue_entity = entity.clone();
+
+    let mut menu = ContextMenu::new()
+        .action_with(
+            |_, _| menu_label(LucideIcons::BadgeInfo, "Get Info"),
+            move |window, cx| songs::show_track_info(info_track.clone(), window, cx),
+        )
+        .action_with(
+            move |_, _| menu_label(LucideIcons::Heart, like_label),
+            move |_, cx| {
+                favorite_entity.update(cx, |app, cx| app.toggle_current_favorite(cx));
+            },
+        )
+        .separator()
+        .action_with(
+            |_, _| menu_label(LucideIcons::ListPlus, strings::play_next()),
+            move |_, cx| {
+                next_entity.update(cx, |app, cx| {
+                    app.playback.update(cx, |playback, cx| {
+                        playback.play_next(next_track.clone(), cx)
+                    });
+                });
+                toast::success(strings::play_next(), cx);
+            },
+        )
+        .action_with(
+            |_, _| menu_label(LucideIcons::ListEnd, strings::add_to_queue()),
+            move |_, cx| {
+                enqueue_entity.update(cx, |app, cx| {
+                    app.playback.update(cx, |playback, cx| {
+                        playback.enqueue(enqueue_track.clone(), cx)
+                    });
+                });
+                toast::success(strings::add_to_queue(), cx);
+            },
+        )
+        .separator()
+        .action_with(
+            |_, _| menu_label(LucideIcons::Copy, "Copy"),
+            move |_, cx| {
+                cx.write_to_clipboard(ClipboardItem::new_string(songs::song_clipboard_text(
+                    &copy_track,
+                )));
+                toast::success("Song info copied", cx);
+            },
+        );
+    if let Some(artist_id) = artist_id {
+        let artist_entity = entity.clone();
+        menu = menu.action_with(
+            |_, _| menu_label(LucideIcons::MicVocal, "Go to Artist"),
+            move |_, cx| {
+                artist_entity.update(cx, |app, cx| {
+                    app.now_playing = false;
+                    app.navigate(Page::Artist(artist_id.clone().into()), cx);
+                });
+            },
+        );
+    }
+    if let Some(album_id) = album_id {
+        menu = menu.action_with(
+            |_, _| menu_label(LucideIcons::DiscAlbum, "Go to Album"),
+            move |_, cx| {
+                entity.update(cx, |app, cx| {
+                    app.now_playing = false;
+                    app.navigate(Page::Album(album_id.clone().into()), cx);
+                });
+            },
+        );
+    }
+    theme::style_context_menu(menu)
+}
+
+fn menu_label(icon: LucideIcons, label: &'static str) -> Div {
+    div()
+        .flex()
+        .items_center()
+        .gap(px(10.))
+        .child(svg().path(icon).size(px(16.)).text_color(rgba(0xf2f0f6f2)))
+        .child(label)
+}
+
+pub(crate) fn playback_artwork(playback: &crate::domain::PlaybackState) -> Arc<Image> {
+    playback
+        .track
+        .artwork
+        .as_ref()
+        .map(|artwork| artwork.image.clone())
+        .unwrap_or_else(fallback_cover)
+}
+
+fn fallback_cover() -> Arc<Image> {
+    Arc::new(Image::from_bytes(
+        ImageFormat::Svg,
+        FALLBACK_COVER.as_bytes().to_vec(),
+    ))
+}

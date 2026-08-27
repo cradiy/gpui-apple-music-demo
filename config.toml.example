@@ -1,0 +1,6 @@
+[logging]
+directory = "~/.local/state/romus-demo-local-player/logs"
+filter = "info,gpui::window=off,wgpu=error,blade_graphics=error,naga=error,zbus=error,sum_tree=error,tracing::span=error,gpui_media::startup=debug,gpui_media::decv_frame=debug,gpui_media::frame_drop=debug"
+max_file_size_bytes = 10485760
+retained_files = 7
+console = true

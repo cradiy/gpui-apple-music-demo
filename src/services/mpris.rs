@@ -12,7 +12,7 @@ use zbus::{
     zvariant::{ObjectPath, OwnedValue, Str, Value},
 };
 
-use crate::state::PlaybackState;
+use crate::domain::PlaybackState;
 
 const OBJECT_PATH: &str = "/org/mpris/MediaPlayer2";
 const TRACK_PATH: &str = "/org/mpris/MediaPlayer2/track/1";
@@ -79,10 +79,7 @@ impl MprisBridge {
         let (commands_tx, commands_rx) = async_channel::unbounded();
         let (updates_tx, updates_rx) = async_channel::unbounded();
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
-        let service_name = format!(
-            "org.mpris.MediaPlayer2.gpui_apple_music_demo.instance{}",
-            process::id()
-        );
+        let service_name = format!("org.mpris.MediaPlayer2.romus.instance{}", process::id());
 
         thread::Builder::new()
             .name("gpui-mpris".to_owned())
@@ -223,12 +220,12 @@ impl MprisRoot {
 
     #[zbus(property)]
     fn identity(&self) -> &str {
-        "GPUI Apple Music Demo"
+        "Romus"
     }
 
     #[zbus(property)]
     fn desktop_entry(&self) -> &str {
-        "gpui-apple-music-demo"
+        "romus"
     }
 
     #[zbus(property)]
@@ -378,12 +375,12 @@ impl MprisPlayer {
 
     #[zbus(property)]
     fn can_go_next(&self) -> bool {
-        true
+        false
     }
 
     #[zbus(property)]
     fn can_go_previous(&self) -> bool {
-        true
+        false
     }
 
     #[zbus(property)]
