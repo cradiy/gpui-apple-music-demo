@@ -273,6 +273,7 @@ fn render_window_controls(_app: &mut MusicShell, cx: &mut gpui::Context<MusicShe
                 .flex()
                 .group("playing-div")
                 .items_center()
+                .when(cfg!(target_os = "macos"), |this| this.ml(px(68.)))
                 .gap(px(14.))
                 .child(
                     div()

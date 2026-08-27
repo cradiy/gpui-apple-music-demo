@@ -404,7 +404,7 @@ impl Render for MusicShell {
         window.set_traffic_light_position(if self.now_playing {
             gpui::point(px(17.), px(28.))
         } else {
-            gpui::point(px(34.), px(34.))
+            gpui::point(px(34.), px(30.))
         });
 
         let width = window.bounds().size.width;

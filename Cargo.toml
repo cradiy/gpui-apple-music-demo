@@ -11,18 +11,19 @@ anyhow = "1"
 async-channel = "2.5"
 dirs = "6"
 flexi_logger = { version = "0.31", features = ["colors"] }
-gpui = { git = "https://github.com/cradiy/gpui.git", rev = "e3a3869e38b68b48035eb9b0c82df768e715ba81" }
-gpui_effects = { git = "https://github.com/cradiy/gpui.git", rev = "e3a3869e38b68b48035eb9b0c82df768e715ba81" }
-gpui_media = { git = "https://github.com/cradiy/gpui.git", rev = "e3a3869e38b68b48035eb9b0c82df768e715ba81", default-features = false, features = [
+
+gpui = { git = "https://github.com/cradiy/gpui.git", rev = "96f9161246c2ba6995b753532d19c16fc4b4bc21" }
+gpui_effects = { git = "https://github.com/cradiy/gpui.git", rev = "96f9161246c2ba6995b753532d19c16fc4b4bc21" }
+gpui_media = { git = "https://github.com/cradiy/gpui.git", rev = "96f9161246c2ba6995b753532d19c16fc4b4bc21", default-features = false, features = [
   "audio",
 ] }
-gpui_platform = { git = "https://github.com/cradiy/gpui.git", rev = "e3a3869e38b68b48035eb9b0c82df768e715ba81", features = [
+gpui_platform = { git = "https://github.com/cradiy/gpui.git", rev = "96f9161246c2ba6995b753532d19c16fc4b4bc21", features = [
   "font-kit",
   "wayland",
   "x11",
 ] }
-gpui_tokio = { git = "https://github.com/cradiy/gpui.git", rev = "e3a3869e38b68b48035eb9b0c82df768e715ba81" }
-uic = { git = "https://github.com/cradiy/gpui.git", rev = "e3a3869e38b68b48035eb9b0c82df768e715ba81" }
+gpui_tokio = { git = "https://github.com/cradiy/gpui.git", rev = "96f9161246c2ba6995b753532d19c16fc4b4bc21" }
+uic = { git = "https://github.com/cradiy/gpui.git", rev = "96f9161246c2ba6995b753532d19c16fc4b4bc21" }
 
 log = "0.4"
 rust-embed = "8.12.0"
