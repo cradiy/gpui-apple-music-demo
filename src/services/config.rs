@@ -13,6 +13,21 @@ const DEFAULT_CONFIG: &str = include_str!("../../config.toml.example");
 pub struct ClientConfig {
     pub logging: LoggingConfig,
     pub fonts: FontsConfig,
+    pub linux: LinuxConfig,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LinuxConfig {
+    pub titlebar: LinuxTitlebar,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LinuxTitlebar {
+    #[default]
+    Inline,
+    Hidden,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]

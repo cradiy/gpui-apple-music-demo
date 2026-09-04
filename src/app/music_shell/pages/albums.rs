@@ -16,10 +16,10 @@ use uic::{
         context_menu::{self, ContextMenu, ContextMenuItem},
         input::{Input, InputEvent, TextInput},
         modal::{self, Modal},
-        toast,
     },
 };
 
+use crate::ui::components::feedback as toast;
 use crate::{
     domain::Page,
     resources::RomusIcons,

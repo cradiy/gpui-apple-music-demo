@@ -7,12 +7,10 @@ use gpui::{
 use gpui_effects::album_glow;
 use uic::{
     assets::LucideIcons,
-    components::{
-        context_menu::{self, ContextMenu},
-        toast,
-    },
+    components::context_menu::{self, ContextMenu},
 };
 
+use crate::ui::components::feedback as toast;
 use crate::{
     app::music_shell::{EffectsViewer, MusicShell, pages::songs},
     domain::Page,
@@ -67,17 +65,11 @@ pub fn render(
     };
     let title = playback.track.title.clone();
     let artist = playback.track.artist.clone();
-    let subtitle = playback
-        .track
-        .album
-        .as_ref()
-        .map(|album| format!("{artist} — {album}"))
-        .unwrap_or_else(|| artist.to_string());
+    let subtitle = artist.to_string();
     let show_lyrics = app.now_playing_lyrics;
     let cover_size = (window_height - 310.)
         .min(window_width * 0.30)
         .clamp(280., 430.);
-    let queue_height = (cover_size + 120.).min(window_height - 190.).max(420.);
     let favorite = current_track.as_ref().is_some_and(|track| track.favorite);
     let side_panel = if show_lyrics {
         div()
@@ -94,7 +86,7 @@ pub fn render(
     } else {
         div()
             .w(px(650.))
-            .h(px(queue_height))
+            .h(gpui::relative(0.92))
             .flex_none()
             .flex()
             .justify_center()
@@ -112,7 +104,9 @@ pub fn render(
         .relative()
         .size_full()
         .overflow_hidden()
-        .rounded(px(22.))
+        .when(cfg!(not(target_os = "windows")), |root| {
+            root.rounded(px(22.))
+        })
         .text_color(rgba(0xffffffff))
         .child(
             div()
@@ -246,19 +240,31 @@ pub fn render(
                         )
                         .child(
                             div()
+                                .relative()
                                 .w_full()
                                 .mt(px(18.))
-                                .child(player_bar::render_now_playing(app, cx, rgba(0xffffffff))),
+                                .child(player_bar::render_now_playing(app, cx, rgba(0xffffffff)))
+                                .child(
+                                    toast::cover_layer(cx)
+                                        .bottom(gpui::Length::Auto)
+                                        .top(gpui::relative(1.))
+                                        .mb(px(0.))
+                                        .mt(px(14.)),
+                                ),
                         ),
                 )
                 .child(side_panel),
         )
-        .child(render_window_controls(app, cx))
+        .child(render_window_controls(app, window, cx))
         .child(render_view_switcher(app, cx))
         .into_any_element()
 }
 
-fn render_window_controls(_app: &mut MusicShell, cx: &mut gpui::Context<MusicShell>) -> AnyElement {
+fn render_window_controls(
+    _app: &mut MusicShell,
+    window: &Window,
+    cx: &mut gpui::Context<MusicShell>,
+) -> AnyElement {
     div()
         .absolute()
         .top(px(18.))
@@ -312,6 +318,27 @@ fn render_window_controls(_app: &mut MusicShell, cx: &mut gpui::Context<MusicShe
                         ),
                 ),
         )
+        .when(cfg!(not(target_os = "macos")), |bar| {
+            bar.child(super::window_controls::drag_region().h_full().flex_1())
+        })
+        .when(super::window_controls::visible(cx), |bar| {
+            bar.pr(px(super::window_controls::width())).child(
+                div()
+                    .absolute()
+                    .top(px(-18.))
+                    .right(px(-18.))
+                    .w(px(super::window_controls::width()))
+                    .h(px(super::window_controls::HEIGHT))
+                    .group("now-playing-window-controls")
+                    .child(
+                        super::window_controls::render(window)
+                            .invisible()
+                            .group_hover("now-playing-window-controls", |controls| {
+                                controls.visible()
+                            }),
+                    ),
+            )
+        })
         .into_any_element()
 }
 
@@ -498,7 +525,7 @@ fn now_playing_track_menu(entity: gpui::Entity<MusicShell>, track: TrackResponse
             },
         );
     }
-    theme::style_context_menu(menu)
+    theme::style_fullscreen_context_menu(menu)
 }
 
 fn menu_label(icon: LucideIcons, label: &'static str) -> Div {

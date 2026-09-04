@@ -1,8 +1,8 @@
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
+use crate::ui::components::feedback as toast;
 use gpui::{Entity, EventEmitter, PathPromptOptions, Task, Window};
 use gpui_tokio::Tokio;
-use uic::components::toast;
 use uuid::Uuid;
 
 use crate::services::{

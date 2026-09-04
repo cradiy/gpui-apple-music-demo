@@ -36,6 +36,13 @@ cargo run --release
 
 启动后可以直接通过界面选择本地音频或歌词文件。程序记录原始文件路径，并将曲库、播放列表和其他播放器状态保存在本地。
 
+Linux 默认显示右上角的内联窗口按钮。若使用平铺窗口管理器，可在 `~/.config/romus-demo-local-player/config.toml` 中设置以下内容并重启，隐藏窗口按钮（不影响页面工具栏、Windows 或 macOS）：
+
+```toml
+[linux]
+titlebar = "hidden" # 默认 "inline"
+```
+
 ### 项目定位
 
 它依旧是一个用于展示 GPUI 桌面 UI、媒体播放和动态视觉效果的 demo，但曲库、搜索、播放队列、收藏和播放列表等核心功能已经按本地播放器完整实现。它不依赖账号或云端服务，歌曲仍保留在原路径，程序只在本地配置中记录曲库和播放列表信息。
@@ -67,6 +74,8 @@ cargo run --release
 ```
 
 After startup, use the interface to select local audio or lyric files. The player records the original file paths and keeps the library, playlists, and other player state locally.
+
+On Linux, inline window buttons appear at the top right by default. To hide them, set `[linux]` → `titlebar = "hidden"` in `~/.config/romus-demo-local-player/config.toml` and restart. Use `"inline"` to restore them. This does not affect page tools, Windows, or macOS.
 
 ### Project scope
 

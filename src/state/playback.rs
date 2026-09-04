@@ -35,6 +35,7 @@ pub struct PlaybackController {
     play_generation: u64,
     play_task: Option<Task<()>>,
     metadata_task: Option<Task<()>>,
+    queue_duration_task: Option<Task<()>>,
     memory_store: Option<PlaybackMemoryStore>,
     persist_task: Option<Task<()>>,
     restored_identity: Option<String>,
@@ -64,6 +65,7 @@ impl PlaybackController {
             play_generation: 0,
             play_task: None,
             metadata_task: None,
+            queue_duration_task: None,
             memory_store,
             persist_task: None,
             restored_identity: None,
@@ -122,6 +124,7 @@ impl PlaybackController {
         );
         self.snapshot.volume = memory.volume;
         self.snapshot.muted = memory.muted;
+        self.refresh_queue_durations(cx);
         let Some(track) = self.queue.current().cloned() else {
             return;
         };
@@ -129,6 +132,7 @@ impl PlaybackController {
     }
 
     pub fn clear_persisted(&mut self) {
+        self.queue_duration_task = None;
         self.persist_task = None;
         self.restored_identity = None;
         if let Some(store) = &self.memory_store
@@ -136,6 +140,47 @@ impl PlaybackController {
         {
             log::warn!("unable to clear playback memory: {error:#}");
         }
+    }
+
+    fn refresh_queue_durations(&mut self, cx: &mut gpui::Context<Self>) {
+        if !self
+            .queue
+            .items
+            .iter()
+            .any(|item| item.track.duration_ms.is_none())
+        {
+            return;
+        }
+        let request = cx.background_executor().spawn(async {
+            crate::services::local::LocalStore::shared()?
+                .tracks()
+                .map(|tracks| {
+                    tracks
+                        .into_iter()
+                        .filter_map(|track| track.duration_ms.map(|duration| (track.id, duration)))
+                        .collect::<std::collections::HashMap<_, _>>()
+                })
+        });
+        self.queue_duration_task = Some(cx.spawn(async move |this, cx| {
+            let result = request.await;
+            let Some(this) = this.upgrade() else {
+                return;
+            };
+            this.update(cx, |controller, cx| {
+                controller.queue_duration_task = None;
+                match result {
+                    Ok(durations) => {
+                        for item in &mut controller.queue.items {
+                            if item.track.duration_ms.is_none() {
+                                item.track.duration_ms = durations.get(&item.track.id).copied();
+                            }
+                        }
+                        cx.notify();
+                    }
+                    Err(error) => log::warn!("Unable to refresh queue durations: {error}"),
+                }
+            });
+        }));
     }
 
     pub fn play_track(&mut self, track: TrackResponse, cx: &mut gpui::Context<Self>) {

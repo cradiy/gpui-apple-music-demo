@@ -10,11 +10,11 @@ use uic::{
     components::{
         context_menu::{ContextMenu, ContextMenuExt, ContextMenuItem},
         modal::{self, Modal},
-        toast,
     },
 };
 
 use super::songs;
+use crate::ui::components::feedback as toast;
 use crate::{
     app::music_shell::sidebar::Sidebar,
     domain::Page,
@@ -734,7 +734,7 @@ fn section_header(
                     .rounded(px(6.))
                     .cursor_pointer()
                     .text_size(px(12.))
-                    .font_weight(FontWeight::MEDIUM)
+                    .font_weight(FontWeight::BOLD)
                     .text_color(rgba(0xff6684d8))
                     .hover(|link| link.text_color(p.accent))
                     .on_click(cx.listener(move |_, _, _, cx| {
@@ -868,7 +868,7 @@ fn listen_now_grid(
                             div()
                                 .truncate()
                                 .text_size(px(13.))
-                                .font_weight(FontWeight::SEMIBOLD)
+                                .font_weight(FontWeight::BOLD)
                                 .child(title),
                         )
                         .child(

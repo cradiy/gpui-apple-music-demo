@@ -13,7 +13,7 @@ fn search_input(input: Input) -> Input {
 }
 
 fn drag_region() -> impl IntoElement {
-    div()
+    super::window_controls::drag_region()
         .h_full()
         .flex_1()
         .window_control_area(WindowControlArea::Drag)
@@ -22,6 +22,7 @@ fn drag_region() -> impl IntoElement {
 pub fn render(
     app: &mut MusicShell,
     compact: bool,
+    controls_inset: f32,
     cx: &mut gpui::Context<MusicShell>,
 ) -> impl IntoElement {
     let page = app.navigation.page.clone();
@@ -30,6 +31,7 @@ pub fn render(
     div()
         .h(px(56.))
         .px(px(18.))
+        .pr(px(18. + controls_inset))
         .flex()
         .items_center()
         .border_b_1()
@@ -61,7 +63,7 @@ pub fn render(
         .when(page == Page::Songs, |top_bar| {
             top_bar
                 .child(
-                    div()
+                    super::window_controls::drag_region()
                         .h_full()
                         .min_w_0()
                         .flex_1()
@@ -170,7 +172,7 @@ pub fn render(
                 let title = page_title(&page);
                 top_bar
                     .child(
-                        div()
+                        super::window_controls::drag_region()
                             .h_full()
                             .flex_1()
                             .flex()

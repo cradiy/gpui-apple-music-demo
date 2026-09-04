@@ -3,7 +3,7 @@ pub mod music_shell;
 use gpui::{
     AppContext, Entity, ParentElement, Render, Styled, Window, div, prelude::FluentBuilder,
 };
-use uic::components::{context_menu, modal, toast};
+use uic::components::{context_menu, modal};
 
 use crate::services::config::LoadedClientConfig;
 use music_shell::MusicShell;
@@ -35,7 +35,6 @@ impl Render for MusicApp {
                 this.font_family(family_name)
             })
             .child(self.music_shell.clone())
-            .child(toast::layer(cx))
             .child(context_menu::layer(cx))
             .child(modal_layer)
     }

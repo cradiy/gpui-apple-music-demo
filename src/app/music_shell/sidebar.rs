@@ -6,7 +6,7 @@ use std::{
 use gpui::{
     ClickEvent, Div, Entity, Focusable, FontWeight, MouseButton, ObjectFit, PathPromptOptions,
     SharedString, Stateful, Task, Window, WindowControlArea, div, img, prelude::*, px, relative,
-    rgb, rgba, svg,
+    rgba, svg,
 };
 use gpui_effects::FrostedGlassAppearance;
 use gpui_tokio::Tokio;
@@ -16,11 +16,11 @@ use uic::{
         context_menu::{ContextMenu, ContextMenuExt, ContextMenuItem},
         input::{Input, InputAppearance, InputEvent, TextInput},
         modal::{self, Modal},
-        toast,
     },
 };
 use uuid::Uuid;
 
+use crate::ui::components::feedback as toast;
 use crate::{
     domain::Page,
     services::{
@@ -791,21 +791,17 @@ impl gpui::Render for Sidebar {
                     })
                     .flex()
                     .flex_col()
-                    .child(
-                        div()
-                            .h(px(41.))
-                            .px(px(15.))
-                            .flex()
-                            .items_center()
-                            .gap(px(8.))
-                            .window_control_area(WindowControlArea::Drag)
-                            .when(cfg!(not(target_os = "macos")), |header| {
-                                header
-                                    .child(traffic_light(0xff5f57))
-                                    .child(traffic_light(0xffbd2e))
-                                    .child(traffic_light(0x28c840))
-                            }),
-                    )
+                    .when(cfg!(target_os = "macos"), |sidebar| {
+                        sidebar.child(
+                            crate::ui::components::window_controls::drag_region()
+                                .h(px(41.))
+                                .px(px(15.))
+                                .flex()
+                                .items_center()
+                                .gap(px(8.))
+                                .window_control_area(WindowControlArea::Drag),
+                        )
+                    })
                     .child(div().mt_4())
                     .child(nav_item(
                         "nav-search",
@@ -1064,15 +1060,6 @@ fn playlist_cover_cache_path(playlist_id: &str, cover_url: &str) -> Option<PathB
             .join("romus/playlist-covers")
             .join(format!("{safe_id}-{version}.image")),
     )
-}
-
-fn traffic_light(color: u32) -> impl IntoElement {
-    div()
-        .size(px(12.))
-        .rounded_full()
-        .bg(rgb(color))
-        .border_1()
-        .border_color(rgba(0x0000002b))
 }
 
 fn nav_section(label: &'static str) -> Stateful<Div> {

@@ -10,7 +10,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    audio_metadata::{AudioMetadata, EmbeddedArtwork, read_audio_metadata},
+    audio_metadata::{AudioMetadata, EmbeddedArtwork, read_audio_duration, read_audio_metadata},
     services::api::{
         AlbumResponse, ApiError, ArtistResponse, PlaylistDetailResponse, PlaylistItemResponse,
         PlaylistResponse, TrackCredit, TrackMetadataResponse, TrackResponse,
@@ -827,7 +827,7 @@ fn resolve_track(record: LocalTrackRecord) -> ResolvedTrack {
             .as_ref()
             .map(|value| value.len() as i64)
             .unwrap_or(0),
-        duration_ms: None,
+        duration_ms: read_audio_duration(&record.path),
         sample_rate: None,
         channel_count: None,
         bit_depth: None,
@@ -874,7 +874,11 @@ fn playlist_response(playlist: &LocalPlaylistRecord, position: usize) -> Playlis
         description: playlist.description.clone(),
         position: position as i64,
         track_count: playlist.tracks.len() as i64,
-        duration_ms: 0,
+        duration_ms: playlist
+            .tracks
+            .iter()
+            .filter_map(|path| read_audio_duration(path))
+            .sum(),
         cover_url: playlist
             .cover_path
             .as_ref()
@@ -889,7 +893,7 @@ fn default_config_path() -> Result<PathBuf, String> {
         return Ok(PathBuf::from(path));
     }
     dirs::config_dir()
-        .map(|path| path.join("romus-local-player/library.toml"))
+        .map(|path| path.join("romus-demo-local-player/library.toml"))
         .ok_or_else(|| "The system has no available local config directory".into())
 }
 

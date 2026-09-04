@@ -1,3 +1,7 @@
+[linux]
+# Linux only. "inline" shows window buttons; "hidden" hides them. Restart to apply.
+titlebar = "inline"
+
 [logging]
 directory = "~/.local/state/romus-demo-local-player/logs"
 filter = "info,gpui::window=off,wgpu=error,blade_graphics=error,naga=error,zbus=error,sum_tree=error,tracing::span=error,gpui_media::startup=debug,gpui_media::decv_frame=debug,gpui_media::frame_drop=debug"

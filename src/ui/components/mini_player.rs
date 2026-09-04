@@ -455,7 +455,7 @@ fn current_lyric_element(
     match lyrics.mode {
         LyricsMode::Synced if !lyrics.lines.is_empty() => {
             if let Some(gap) = lyrics.gap_at(position, lyrics_panel::LYRIC_GAP_MINIMUM) {
-                return lyrics_panel::lyric_gap_dots(gap, playing, 6.);
+                return lyrics_panel::lyric_gap_dots(gap, position, playing, 6.);
             }
             let active = lyrics.active_index(position);
             let focus = active.unwrap_or_else(|| {
@@ -489,11 +489,11 @@ fn karaoke_or_text(line: &LyricLine, position: Duration) -> AnyElement {
     if let Some(units) = lyrics_panel::timed_text_units(line) {
         TimedText::new(line.text.clone(), units)
             .position(position)
-            .active_fill(rgb(0xfff8fb))
+            .active_fill(rgb(0xffffff))
             .inactive_opacity(0.58)
-            .progressive_lift(px(LYRIC_LIFT))
             .flex_none()
             .whitespace_nowrap()
+            .reveal_wave_width(px(8.))
             .text_size(px(LYRIC_TEXT_SIZE))
             .line_height(relative(1.3))
             .font_weight(FontWeight::MEDIUM)

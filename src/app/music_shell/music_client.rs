@@ -2,13 +2,13 @@ use gpui::{Image, ImageFormat, Task};
 use gpui_tokio::Tokio;
 use std::sync::Arc;
 
+use crate::ui::components::feedback as toast;
 use crate::{
     app::music_shell::{MusicEvent, MusicShell},
     services::profile_api,
     services::session::SessionStore,
     services::{api::ApiError, library_api},
 };
-use uic::components::toast;
 
 impl MusicShell {
     pub fn toggle_current_favorite(&mut self, cx: &mut gpui::Context<Self>) {

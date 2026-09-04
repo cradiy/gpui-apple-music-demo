@@ -62,6 +62,7 @@ async fn main() -> ExitCode {
             cx.set_global(loaded_config.clone());
             cx.set_global(session_store.clone());
             uic::init(cx);
+            gpui_apple_music_demo::ui::components::feedback::init(cx);
             let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
             cx.open_window(
                 WindowOptions {

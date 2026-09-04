@@ -1,3 +1,4 @@
+pub mod feedback;
 pub mod lyrics_panel;
 pub mod media_cover;
 pub mod mini_player;
@@ -6,3 +7,4 @@ pub mod player_bar;
 pub mod queue_panel;
 pub mod top_bar;
 pub mod track_list;
+pub mod window_controls;

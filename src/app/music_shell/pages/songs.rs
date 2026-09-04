@@ -10,10 +10,10 @@ use uic::{
     components::{
         context_menu::{ContextMenu, ContextMenuItem},
         modal::{self, Modal},
-        toast,
     },
 };
 
+use crate::ui::components::feedback as toast;
 use crate::{
     app::music_shell::sidebar::Sidebar,
     domain::Page,

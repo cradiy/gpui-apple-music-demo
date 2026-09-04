@@ -88,6 +88,7 @@ struct QueueDrag {
 }
 
 struct QueueDragPreview {
+    fullscreen: bool,
     title: SharedString,
     artist: SharedString,
     cover: Option<Arc<Image>>,
@@ -96,7 +97,7 @@ struct QueueDragPreview {
 impl Render for QueueDragPreview {
     fn render(&mut self, _: &mut Window, _: &mut gpui::Context<Self>) -> impl IntoElement {
         let cover = self.cover.clone().map(CoverSource::Image);
-        div()
+        let content = div()
             .w(px(layout::LYRICS_WIDTH - 28.0))
             .h(px(ROW_HEIGHT))
             .px(px(10.))
@@ -104,12 +105,13 @@ impl Render for QueueDragPreview {
             .flex()
             .items_center()
             .gap(px(10.))
-            .bg(rgb(0x3a3b42))
-            .shadow(vec![
-                gpui::BoxShadow::new(px(0.), px(8.), rgba(0x00000055).into())
-                    .blur_radius(px(18.))
-                    .spread_radius(px(-4.)),
-            ])
+            .when(!self.fullscreen, |this| {
+                this.bg(rgb(0x3a3b42)).shadow(vec![
+                    gpui::BoxShadow::new(px(0.), px(8.), rgba(0x00000055).into())
+                        .blur_radius(px(18.))
+                        .spread_radius(px(-4.)),
+                ])
+            })
             .child(media_cover::media_cover(
                 self.title.clone(),
                 cover,
@@ -134,10 +136,31 @@ impl Render for QueueDragPreview {
                             .mt(px(2.))
                             .truncate()
                             .text_size(px(11.))
-                            .text_color(rgba(0xb3afbb9c))
+                            .text_color(rgba(if self.fullscreen {
+                                0xffffffad
+                            } else {
+                                0xb3afbb9c
+                            }))
                             .child(self.artist.clone()),
                     ),
-            )
+            );
+        if self.fullscreen {
+            theme::frosted()
+                .appearance(gpui_effects::FrostedGlassAppearance {
+                    blur_radius: px(24.),
+                    tint: rgba(0xffffff13).into(),
+                    brightness: 1.,
+                    saturation: 1.,
+                    edge: rgba(0xffffff0a).into(),
+                    sheen: 0.,
+                    ..theme::frosted_appearance()
+                })
+                .rounded(px(10.))
+                .child(content)
+                .into_any_element()
+        } else {
+            content.into_any_element()
+        }
     }
 }
 
@@ -589,7 +612,7 @@ fn queue_row(
         .child(
             div()
                 .relative()
-                .w(px(32.))
+                .w(px(54.))
                 .h(px(32.))
                 .flex_none()
                 .child(
@@ -601,7 +624,7 @@ fn queue_row(
                         .justify_end()
                         .text_size(px(11.))
                         .text_color(rgba(0xb3afbb8a))
-                        .group_hover(group_name.clone(), |label| label.opacity(0.))
+                        .group_hover(group_name.clone(), |label| label.invisible())
                         .child(duration),
                 )
                 .child({
@@ -610,17 +633,23 @@ fn queue_row(
                     div()
                         .id(("queue-more", key))
                         .absolute()
-                        .inset_0()
+                        .right_0()
+                        .size(px(32.))
                         .rounded_full()
                         .flex()
                         .items_center()
                         .justify_center()
-                        .opacity(0.)
+                        .invisible()
                         .cursor_pointer()
-                        .group_hover(group_name, |button| button.opacity(1.))
+                        .group_hover(group_name, |button| button.visible())
                         .hover(|button| button.bg(rgba(0xffffff12)))
                         .on_mouse_down(MouseButton::Left, move |event, window, cx| {
-                            let menu = queue_item_menu(menu_entity.clone(), key, &menu_track);
+                            let menu = queue_item_menu(
+                                menu_entity.clone(),
+                                key,
+                                &menu_track,
+                                menu_entity.read(cx).now_playing,
+                            );
                             let _ = context_menu::show(menu, event.position, window, cx);
                             cx.stop_propagation();
                         })
@@ -635,17 +664,26 @@ fn queue_row(
         .context_menu({
             let menu_entity = menu_entity.clone();
             let menu_track = menu_track.clone();
-            move |_, _| queue_item_menu(menu_entity.clone(), key, &menu_track)
+            move |_, cx| {
+                queue_item_menu(
+                    menu_entity.clone(),
+                    key,
+                    &menu_track,
+                    menu_entity.read(cx).now_playing,
+                )
+            }
         });
 
     let drag_entity = entity.clone();
     row.on_drag(drag, move |drag, cursor_offset, _, cx| {
-        drag_entity.update(cx, |app, cx| {
+        let fullscreen = drag_entity.update(cx, |app, cx| {
             app.queue_ui.drag_key = Some(drag.key);
             app.queue_ui.cursor_offset_y = cursor_offset.y.as_f32();
             cx.notify();
+            app.now_playing
         });
         cx.new(|_| QueueDragPreview {
+            fullscreen,
             title: drag.title.clone(),
             artist: drag.artist.clone(),
             cover: drag.cover.clone(),
@@ -666,6 +704,7 @@ fn queue_item_menu(
     entity: gpui::Entity<MusicShell>,
     key: u64,
     track: &TrackResponse,
+    fullscreen: bool,
 ) -> ContextMenu {
     let play_next_entity = entity.clone();
     let end_entity = entity.clone();
@@ -726,7 +765,11 @@ fn queue_item_menu(
             );
         }
     }
-    theme::style_context_menu(menu)
+    if fullscreen {
+        theme::style_fullscreen_context_menu(menu)
+    } else {
+        theme::style_context_menu(menu)
+    }
 }
 
 fn menu_label(icon: LucideIcons, label: &'static str) -> impl IntoElement {

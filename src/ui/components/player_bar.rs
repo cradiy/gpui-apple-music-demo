@@ -443,6 +443,7 @@ pub fn render(
                     )
                 }),
         )
+        .child(super::feedback::layer(cx))
 }
 
 pub fn render_now_playing(

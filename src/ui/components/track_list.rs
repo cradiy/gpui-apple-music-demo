@@ -54,11 +54,10 @@ fn track_list_header() -> Div {
         .child(column("Album", 210.))
         .child(
             div()
-                .w(px(68.))
+                .w(px(100.))
                 .text_align(gpui::TextAlign::Right)
                 .child("Time"),
         )
-        .child(div().w(px(32.)))
 }
 
 fn track_row(
@@ -76,6 +75,7 @@ fn track_row(
         .to_owned();
     let album = track.album.as_deref().unwrap_or("—").to_owned();
     let duration = format_duration(track.duration_ms);
+    let group = gpui::SharedString::from(format!("track-list-row-{index}"));
     let row_track = track.clone();
     let row_menu_builder = menu_builder.clone();
     let more_track = track.clone();
@@ -84,6 +84,7 @@ fn track_row(
 
     div()
         .id(("track-list-row", index))
+        .group(group.clone())
         .h(px(56.))
         .px(px(10.))
         .flex()
@@ -123,33 +124,47 @@ fn track_row(
         .child(value_column(album, 210.))
         .child(
             div()
-                .w(px(68.))
-                .text_align(gpui::TextAlign::Right)
-                .text_size(px(13.))
-                .text_color(rgba(0xb7b5c0a8))
-                .child(duration),
-        )
-        .child(
-            div()
-                .id(("track-more-button", index))
-                .size(px(30.))
+                .relative()
+                .w(px(100.))
+                .h(px(30.))
                 .flex_none()
-                .rounded_full()
                 .flex()
                 .items_center()
-                .justify_center()
-                .cursor_pointer()
-                .hover(|button| button.bg(rgba(0xffffff0e)))
-                .on_mouse_down(MouseButton::Left, move |event, window, cx| {
-                    let menu = more_menu_builder(more_track.clone(), window, cx);
-                    let _ = context_menu::show(menu, event.position, window, cx);
-                    cx.stop_propagation();
-                })
+                .justify_end()
                 .child(
-                    svg()
-                        .path(LucideIcons::Ellipsis)
-                        .size(px(14.))
-                        .text_color(rgba(0xb7b5c08f)),
+                    div()
+                        .group_hover(group.clone(), |label| label.invisible())
+                        .text_align(gpui::TextAlign::Right)
+                        .text_size(px(13.))
+                        .text_color(rgba(0xb7b5c0a8))
+                        .child(duration),
+                )
+                .child(
+                    div()
+                        .id(("track-more-button", index))
+                        .absolute()
+                        .right_0()
+                        .invisible()
+                        .group_hover(group, |button| button.visible())
+                        .size(px(30.))
+                        .flex_none()
+                        .rounded_full()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .hover(|button| button.bg(rgba(0xffffff0e)))
+                        .on_mouse_down(MouseButton::Left, move |event, window, cx| {
+                            let menu = more_menu_builder(more_track.clone(), window, cx);
+                            let _ = context_menu::show(menu, event.position, window, cx);
+                            cx.stop_propagation();
+                        })
+                        .child(
+                            svg()
+                                .path(LucideIcons::Ellipsis)
+                                .size(px(14.))
+                                .text_color(rgba(0xb7b5c08f)),
+                        ),
                 ),
         )
         .context_menu(move |window, cx| row_menu_builder(row_track.clone(), window, cx))

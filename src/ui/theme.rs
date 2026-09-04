@@ -163,6 +163,41 @@ fn frosted_menu_surface(
         .into_any_element()
 }
 
+pub fn style_fullscreen_context_menu(menu: ContextMenu) -> ContextMenu {
+    style_context_menu(menu)
+        .appearance(ContextMenuAppearance {
+            selected_background: rgba(0xffffff22).into(),
+            separator: rgba(0xffffff12).into(),
+            muted_foreground: rgba(0xffffff80).into(),
+            ..context_menu_appearance()
+        })
+        .text_color(rgba(0xffffffe5))
+        .surface(|state, content, _, _| {
+            frosted()
+                .appearance(FrostedGlassAppearance {
+                    blur_radius: px(24.),
+                    tint: rgba(0xffffff13).into(),
+                    brightness: 1.,
+                    saturation: 1.,
+                    edge: rgba(0xffffff0a).into(),
+                    sheen: 0.,
+                    ..frosted_appearance()
+                })
+                .id((
+                    "romus-fullscreen-menu-glass",
+                    state.session_id.saturating_mul(10) + state.depth as u64,
+                ))
+                .rounded(px(16.))
+                .shadow(vec![
+                    gpui::BoxShadow::new(px(0.), px(6.), rgba(0x00000018).into())
+                        .blur_radius(px(20.))
+                        .spread_radius(px(-4.)),
+                ])
+                .child(content)
+                .into_any_element()
+        })
+}
+
 pub fn dark_modal_appearance() -> ModalAppearance {
     let defaults = ModalAppearance::default();
     defaults

@@ -7,12 +7,10 @@ use gpui::{
 use gpui_tokio::Tokio;
 use uic::{
     assets::LucideIcons,
-    components::{
-        context_menu::{ContextMenu, ContextMenuItem},
-        toast,
-    },
+    components::context_menu::{ContextMenu, ContextMenuItem},
 };
 
+use crate::ui::components::feedback as toast;
 use crate::{
     resources::RomusIcons,
     services::{

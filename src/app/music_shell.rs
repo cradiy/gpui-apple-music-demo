@@ -24,7 +24,10 @@ use crate::{
         ImportEvent, ImportManager, NavigationState, PlaybackController, PlaybackEvent,
         PlaylistStore,
     },
-    ui::components::{lyrics_panel, mini_player, now_playing, player_bar, queue_panel, top_bar},
+    ui::components::{
+        feedback, lyrics_panel, mini_player, now_playing, player_bar, queue_panel, top_bar,
+        window_controls,
+    },
     ui::strings,
     ui::theme::layout,
 };
@@ -174,27 +177,27 @@ impl MusicShell {
                     app.playback.update(cx, |playback, cx| {
                         playback.play_next(track.as_ref().clone(), cx)
                     });
-                    uic::components::toast::success(strings::play_next(), cx);
+                    feedback::success(strings::play_next(), cx);
                     cx.notify();
                 }
                 ContentShellEvent::Enqueue(track) => {
                     app.playback.update(cx, |playback, cx| {
                         playback.enqueue(track.as_ref().clone(), cx)
                     });
-                    uic::components::toast::success(strings::add_to_queue(), cx);
+                    feedback::success(strings::add_to_queue(), cx);
                     cx.notify();
                 }
                 ContentShellEvent::PlayNextMany(tracks) => {
                     app.playback.update(cx, |playback, cx| {
                         playback.play_next_many(tracks.clone(), cx)
                     });
-                    uic::components::toast::success(strings::play_next(), cx);
+                    feedback::success(strings::play_next(), cx);
                     cx.notify();
                 }
                 ContentShellEvent::EnqueueMany(tracks) => {
                     app.playback
                         .update(cx, |playback, cx| playback.enqueue_many(tracks.clone(), cx));
-                    uic::components::toast::success(strings::add_to_queue(), cx);
+                    feedback::success(strings::add_to_queue(), cx);
                     cx.notify();
                 }
             },
@@ -416,6 +419,12 @@ impl Render for MusicShell {
         let wide_enough = width >= px(layout::HIDE_LYRICS_BELOW);
         let show_queue = self.playback_panel == PlaybackPanel::Queue && wide_enough;
         let show_inline_lyrics = self.playback_panel == PlaybackPanel::InlineLyrics && wide_enough;
+        let show_window_controls = window_controls::visible(cx);
+        let controls_inset = if show_window_controls && !show_queue && !show_inline_lyrics {
+            window_controls::width()
+        } else {
+            0.
+        };
         if show_inline_lyrics {
             window.request_animation_frame();
         }
@@ -454,7 +463,7 @@ impl Render for MusicShell {
                             .flex()
                             .flex_col()
                             .bg(rgb(0x20222d))
-                            .child(top_bar::render(self, compact, cx))
+                            .child(top_bar::render(self, compact, controls_inset, cx))
                             .child(self.content_shell.clone())
                             .child(
                                 div()
@@ -468,16 +477,31 @@ impl Render for MusicShell {
                             ),
                     )
                     .when(show_queue, |body| {
-                        body.child(queue_panel::render(self, window, cx))
+                        body.child(window_controls::below_titlebar(
+                            queue_panel::render(self, window, cx),
+                            show_window_controls,
+                        ))
                     })
                     .when(show_inline_lyrics, |body| {
-                        body.child(lyrics_panel::render(
-                            &playback,
-                            &mut self.lyrics_panel,
-                            self.playback.clone(),
+                        body.child(window_controls::below_titlebar(
+                            lyrics_panel::render(
+                                &playback,
+                                &mut self.lyrics_panel,
+                                self.playback.clone(),
+                            ),
+                            show_window_controls,
                         ))
                     }),
             )
+            .when(show_window_controls, |root| {
+                root.child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .right_0()
+                        .child(window_controls::render(window)),
+                )
+            })
             .into_any_element()
     }
 }

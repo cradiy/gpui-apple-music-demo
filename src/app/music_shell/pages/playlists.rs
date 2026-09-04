@@ -7,13 +7,11 @@ use gpui::{
 use gpui_tokio::Tokio;
 use uic::{
     assets::LucideIcons,
-    components::{
-        context_menu::{self, ContextMenu, ContextMenuExt, ContextMenuItem},
-        toast,
-    },
+    components::context_menu::{self, ContextMenu, ContextMenuExt, ContextMenuItem},
 };
 
 use super::ContentShell;
+use crate::ui::components::feedback as toast;
 use crate::{
     app::music_shell::sidebar::{self, Sidebar},
     domain::{Page, PlayList},

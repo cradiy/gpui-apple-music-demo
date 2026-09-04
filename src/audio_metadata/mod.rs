@@ -1,5 +1,8 @@
+mod duration;
 mod id3;
 mod mp4;
+
+pub use duration::read_audio_duration;
 
 use std::{
     fs::File,
