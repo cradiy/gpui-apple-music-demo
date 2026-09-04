@@ -601,11 +601,11 @@ fn mini_bounds(window: &Window, cx: &App) -> Bounds<gpui::Pixels> {
 }
 
 fn mini_window_kind() -> WindowKind {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
         WindowKind::PopUp
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         WindowKind::Normal
     }
