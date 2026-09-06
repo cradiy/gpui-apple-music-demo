@@ -4,7 +4,9 @@ use gpui::{
     AnyElement, ClipboardItem, Div, FontWeight, Image, ImageFormat, MouseButton, ObjectFit,
     SharedString, Stateful, Window, div, img, prelude::*, px, rgb, rgba, svg,
 };
-use gpui_effects::album_glow;
+use gpui_effects::{
+    ColorFlowOptions, LiquidGlass, LiquidGlassAppearance, color_flow, paint_liquid_glass,
+};
 use uic::{
     assets::LucideIcons,
     components::context_menu::{self, ContextMenu},
@@ -26,6 +28,44 @@ const FALLBACK_COVER: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="
 <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff375f"/><stop offset=".5" stop-color="#6e5bff"/><stop offset="1" stop-color="#10131d"/></linearGradient></defs>
 <rect width="800" height="800" rx="120" fill="url(#g)"/><path d="M510 175v360c0 74-60 134-134 134s-134-60-134-134 60-134 134-134c28 0 54 9 75 23V232l59-57z" fill="white" fill-opacity=".9"/>
 </svg>"##;
+
+/// Fade out the visible panel before replacing it, then fade in the new panel.
+/// Keep the current visibility when reversing direction during a rapid toggle.
+#[derive(Default)]
+pub struct PanelTransition {
+    frame: Option<PanelTransitionFrame>,
+}
+
+struct PanelTransitionFrame {
+    lyrics: bool,
+    visibility: f32,
+    at: Instant,
+}
+
+impl PanelTransition {
+    fn sample(&mut self, target_lyrics: bool, now: Instant) -> (bool, f32) {
+        const FADE_SECONDS: f32 = 0.16;
+        let frame = self.frame.get_or_insert(PanelTransitionFrame {
+            lyrics: target_lyrics,
+            visibility: 1.,
+            at: now,
+        });
+        let step = now.saturating_duration_since(frame.at).as_secs_f32() / FADE_SECONDS;
+        frame.at = now;
+        if frame.lyrics == target_lyrics {
+            frame.visibility = (frame.visibility + step).min(1.);
+        } else if step < frame.visibility {
+            frame.visibility -= step;
+        } else {
+            // Change the layout only at zero opacity; apply any remaining frame
+            // time to the incoming panel so slow frames do not extend the fade.
+            frame.lyrics = target_lyrics;
+            frame.visibility = (step - frame.visibility).min(1.);
+        }
+        let t = frame.visibility;
+        (frame.lyrics, t * t * (3. - 2. * t))
+    }
+}
 
 pub fn render(
     app: &mut MusicShell,
@@ -66,7 +106,9 @@ pub fn render(
     let title = playback.track.title.clone();
     let artist = playback.track.artist.clone();
     let subtitle = artist.to_string();
-    let show_lyrics = app.now_playing_lyrics;
+    let (show_lyrics, panel_opacity) = app
+        .now_playing_panel_transition
+        .sample(app.now_playing_lyrics, Instant::now());
     let cover_size = (window_height - 310.)
         .min(window_width * 0.30)
         .clamp(280., 430.);
@@ -77,6 +119,7 @@ pub fn render(
             .flex_1()
             .min_w(px(390.))
             .max_w(px(650.))
+            .opacity(panel_opacity)
             .child(lyrics_panel::render_fullscreen(
                 &playback,
                 &mut app.lyrics_panel,
@@ -88,6 +131,7 @@ pub fn render(
             .w(px(650.))
             .h(gpui::relative(0.92))
             .flex_none()
+            .opacity(panel_opacity)
             .flex()
             .justify_center()
             .overflow_hidden()
@@ -116,7 +160,20 @@ pub fn render(
                 .bottom_0()
                 .left_0()
                 .overflow_hidden()
-                .child(album_glow(effect_artwork).time(background_time).size_full()),
+                .child(
+                    color_flow(effect_artwork)
+                        .options(
+                            ColorFlowOptions::default()
+                                .brightness(0.85)
+                                .cohesion(0.85)
+                                .drift(0.45), // .diffusion(0.22)
+                                              // .saturation(0.9)
+                                              // .motion(1.0)
+                                              // .dither(1.0),
+                        )
+                        .time(background_time)
+                        .size_full(),
+                ),
         )
         .child(
             div()
@@ -177,7 +234,7 @@ pub fn render(
                                                 .truncate()
                                                 .text_size(px(11.5))
                                                 .font_weight(FontWeight::MEDIUM)
-                                                .text_color(rgba(0xffffffad))
+                                                .text_color(rgba(0xffffffe6))
                                                 .child(subtitle),
                                         ),
                                 )
@@ -260,6 +317,9 @@ pub fn render(
         .into_any_element()
 }
 
+// Native traffic lights and the adjacent controls share this top-row anchor.
+pub(crate) const WINDOW_CONTROLS_TOP: f32 = if cfg!(target_os = "macos") { 8. } else { 18. };
+
 fn render_window_controls(
     _app: &mut MusicShell,
     window: &Window,
@@ -267,7 +327,7 @@ fn render_window_controls(
 ) -> AnyElement {
     div()
         .absolute()
-        .top(px(18.))
+        .top(px(WINDOW_CONTROLS_TOP))
         .left(px(18.))
         .right(px(18.))
         .h(px(34.))
@@ -275,47 +335,22 @@ fn render_window_controls(
         .items_center()
         .justify_between()
         .child(
-            div()
-                .flex()
-                .group("playing-div")
-                .items_center()
+            controls_capsule(true)
                 .when(cfg!(target_os = "macos"), |this| this.ml(px(68.)))
-                .gap(px(14.))
                 .child(
-                    div()
-                        .h(px(32.))
-                        .px(px(7.))
-                        .flex()
-                        .invisible()
-                        .group_hover("playing-div", |this| this.visible())
-                        .id("close-now-playing-div")
-                        .items_center()
-                        .gap(px(8.))
-                        .hover(|this| this.bg(rgba(0xffffff2a)))
-                        .rounded_full()
-                        .child(top_icon_button("close-now-playing", LucideIcons::X))
-                        .on_click(cx.listener(|app, _, _, cx| {
+                    top_icon_button("close-now-playing", LucideIcons::X).on_click(cx.listener(
+                        |app, _, _, cx| {
                             app.now_playing = false;
                             cx.notify();
-                        })),
+                        },
+                    )),
                 )
                 .child(
-                    div()
-                        .h(px(32.))
-                        .px(px(7.))
-                        .flex()
-                        .invisible()
-                        .items_center()
-                        .group_hover("playing-div", |this| this.visible())
-                        .gap(px(8.))
-                        .hover(|this| this.bg(rgba(0xffffff2a)))
-                        .rounded_full()
-                        .child(
-                            top_icon_button("mini-now-playing", LucideIcons::PictureInPicture2)
-                                .on_click(cx.listener(|app, _, window, cx| {
-                                    app.enter_mini_player(window, cx);
-                                })),
-                        ),
+                    top_icon_button("mini-now-playing", LucideIcons::PictureInPicture2).on_click(
+                        cx.listener(|app, _, window, cx| {
+                            app.enter_mini_player(window, cx);
+                        }),
+                    ),
                 ),
         )
         .when(cfg!(not(target_os = "macos")), |bar| {
@@ -325,7 +360,7 @@ fn render_window_controls(
             bar.pr(px(super::window_controls::width())).child(
                 div()
                     .absolute()
-                    .top(px(-18.))
+                    .top(px(-WINDOW_CONTROLS_TOP))
                     .right(px(-18.))
                     .w(px(super::window_controls::width()))
                     .h(px(super::window_controls::HEIGHT))
@@ -342,20 +377,43 @@ fn render_window_controls(
         .into_any_element()
 }
 
+fn controls_glass_appearance() -> LiquidGlassAppearance {
+    LiquidGlassAppearance::clear()
+        .blur_radius(px(10.))
+        .clarity(0.35)
+        .refraction(px(4.))
+        .thickness(px(10.))
+        .dispersion(0.005)
+        .tint(rgba(0xffffff30).into())
+        .brightness(1.0)
+        .highlight(0.32)
+        .edge_shadow(0.14)
+        .rim_width(px(0.7))
+}
+
+fn controls_capsule(edge_tint: bool) -> LiquidGlass {
+    LiquidGlass::with_appearance(if edge_tint {
+        controls_glass_appearance()
+            .edge_tint_width(px(2.))
+            .edge_tint_strength(0.4)
+    } else {
+        controls_glass_appearance()
+    })
+    .h(px(36.))
+    .px(px(5.))
+    .flex()
+    .items_center()
+    .gap(px(12.))
+    .rounded_full()
+    .border_1()
+    .border_color(rgba(0xffffff1a))
+}
+
 fn render_view_switcher(app: &mut MusicShell, cx: &mut gpui::Context<MusicShell>) -> AnyElement {
-    div()
+    controls_capsule(true)
         .absolute()
         .right(px(18.))
         .bottom(px(16.))
-        .h(px(36.))
-        .px(px(5.))
-        .flex()
-        .items_center()
-        .gap(px(12.))
-        .rounded_full()
-        .bg(rgba(0xffffff2a))
-        .border_1()
-        .border_color(rgba(0xffffff1a))
         .child(
             div()
                 .id("toggle-now-playing-lyrics")
@@ -413,6 +471,10 @@ fn round_icon_button(
     enabled: bool,
 ) -> Stateful<Div> {
     div()
+        .on_paint_before_children(|bounds, style, window, _| {
+            let corners = style.corner_radii.to_pixels(window.rem_size());
+            paint_liquid_glass(bounds, corners, controls_glass_appearance(), window);
+        })
         .id(id)
         .size(px(36.))
         .flex()
@@ -422,7 +484,6 @@ fn round_icon_button(
         .when(enabled, |button| {
             button
                 .cursor_pointer()
-                .bg(rgba(0xffffff13))
                 .hover(|style| style.bg(rgba(0xffffff22)))
         })
         .when(!enabled, |button| button.opacity(0.42))
@@ -437,12 +498,13 @@ fn round_icon_button(
 fn top_icon_button(id: &'static str, icon: LucideIcons) -> Stateful<Div> {
     div()
         .id(id)
-        .size(px(25.))
+        .size(px(27.))
         .flex()
         .items_center()
         .justify_center()
         .rounded_full()
         .cursor_pointer()
+        .hover(|button| button.bg(rgba(0xffffff20)))
         .child(svg().path(icon).size(px(20.)).text_color(rgba(0xffffffff)))
 }
 

@@ -10,7 +10,7 @@ use gpui::{
     WindowKind, WindowOptions, bounds, div, img, point, prelude::*, px, relative, rgb, rgba, size,
     svg,
 };
-use gpui_effects::{TimedText, album_glow};
+use gpui_effects::{TimedText, color_flow};
 use uic::{
     assets::LucideIcons,
     components::slider::{
@@ -159,7 +159,7 @@ impl Render for MiniPlayer {
                     .bottom_0()
                     .left_0()
                     .overflow_hidden()
-                    .child(album_glow(effect_artwork).time(background_time).size_full()),
+                    .child(color_flow(effect_artwork).time(background_time).size_full()),
             )
             .text_color(rgba(0xffffffff))
             .cursor(CursorStyle::OpenHand)

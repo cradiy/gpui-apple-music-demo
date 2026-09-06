@@ -294,7 +294,7 @@ fn render_panel(
                             div()
                                 .text_size(px(12.))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(rgba(0xb7b8c28c))
+                                .text_color(rgba(0xffffffe0))
                                 .child("QUEUE"),
                         )
                         .when_some(playing_from.clone(), |header, name| {
@@ -304,7 +304,7 @@ fn render_panel(
                                     .truncate()
                                     .text_size(px(12.))
                                     .font_weight(FontWeight::MEDIUM)
-                                    .text_color(rgba(0xe8e6eecc))
+                                    .text_color(rgba(0xffffffe6))
                                     .child(format!("{} {name}", strings::playing_from())),
                             )
                         }),
@@ -344,7 +344,7 @@ fn render_panel(
                             .flex()
                             .justify_center()
                             .text_size(px(13.))
-                            .text_color(rgba(0xb3afbb8a))
+                            .text_color(rgba(0xffffffe0))
                             .child(strings::queue_empty()),
                     )
                 })
@@ -458,7 +458,7 @@ fn section_label(label: &'static str, top: f32) -> impl IntoElement {
         .items_center()
         .text_size(px(11.))
         .font_weight(FontWeight::SEMIBOLD)
-        .text_color(rgba(0xb3afbb9c))
+        .text_color(rgba(0xffffffe0))
         .child(label)
 }
 
@@ -590,9 +590,9 @@ fn queue_row(
                         .text_color(if current {
                             rgba(0xffffffff)
                         } else if played {
-                            rgba(0xf1eff596)
+                            rgba(0xffffffe6)
                         } else {
-                            rgba(0xf1eff5ef)
+                            rgba(0xfffffff5)
                         })
                         .child(title),
                 )
@@ -602,9 +602,9 @@ fn queue_row(
                         .truncate()
                         .text_size(px(11.))
                         .text_color(if played {
-                            rgba(0xb3afbb72)
+                            rgba(0xffffffd9)
                         } else {
-                            rgba(0xb3afbb9c)
+                            rgba(0xffffffe6)
                         })
                         .child(artist),
                 ),
@@ -623,7 +623,7 @@ fn queue_row(
                         .items_center()
                         .justify_end()
                         .text_size(px(11.))
-                        .text_color(rgba(0xb3afbb8a))
+                        .text_color(rgba(0xffffffe0))
                         .group_hover(group_name.clone(), |label| label.invisible())
                         .child(duration),
                 )

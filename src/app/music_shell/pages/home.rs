@@ -1177,7 +1177,7 @@ fn add_playlist_action(
 
 fn playlist_create_label() -> Div {
     div()
-        .text_size(px(13.))
+        .text_size(px(12.))
         .font_weight(FontWeight::BOLD)
         .child("New Playlist")
 }
@@ -1209,7 +1209,7 @@ fn playlist_action_label(label: String) -> Div {
         .flex()
         .items_center()
         .gap(px(11.))
-        .text_size(px(12.5))
+        .text_size(px(12.))
         .child(
             svg()
                 .path(LucideIcons::Music2)

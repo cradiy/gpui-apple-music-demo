@@ -7,15 +7,17 @@ use std::{
 
 use gpui::{
     Animation, AnimationExt, AnyElement, Entity, FontWeight, Image, ImageFormat, ScrollHandle,
-    SharedString, div, ease_out_quint, point, prelude::*, px, relative, rgb, rgba,
+    SharedString, div, point, prelude::*, px, relative, rgb, rgba,
 };
-use gpui_effects::{TextBlur, TimedText, TimedTextUnit, album_glow};
+use gpui_effects::{ColorFlowOptions, TextBlur, TimedText, TimedTextUnit, color_flow};
+
+mod motion;
+use motion::{DelayedSpring, Spring, row_delay};
 
 use crate::{
     domain::PlaybackState,
     domain::lyrics::{LyricGap, LyricLine, LyricsMode},
     state::PlaybackController,
-    ui::theme::layout,
 };
 
 #[derive(Default)]
@@ -87,6 +89,10 @@ struct LyricsScrollState {
     animation: Option<ScrollAnimation>,
     last_target: Option<f32>,
     initialized: bool,
+    row_visuals: Vec<LyricVisual>,
+    last_visual_frame: Option<Instant>,
+    row_motion: Vec<DelayedSpring>,
+    stagger_enabled: bool,
 }
 
 impl Default for LyricsScrollState {
@@ -99,6 +105,10 @@ impl Default for LyricsScrollState {
             animation: None,
             last_target: None,
             initialized: false,
+            row_visuals: Vec::new(),
+            last_visual_frame: None,
+            row_motion: Vec::new(),
+            stagger_enabled: false,
         }
     }
 }
@@ -115,15 +125,26 @@ impl LyricsScrollState {
         self.animation = None;
         self.last_target = None;
         self.initialized = false;
+        self.row_visuals.clear();
+        self.last_visual_frame = None;
+        self.row_motion.clear();
+        self.stagger_enabled = false;
     }
 }
 
 #[derive(Clone, Copy)]
 struct ScrollAnimation {
-    from: f32,
-    to: f32,
-    started_at: Instant,
-    duration: Duration,
+    spring: Spring,
+    sampled_at: Instant,
+}
+
+#[derive(Clone, Copy)]
+struct LyricVisual {
+    emphasis: Spring,
+    activation: Spring,
+    alpha: Spring,
+    resting_alpha: Spring,
+    blur: Spring,
 }
 
 struct LyricRowContext {
@@ -141,8 +162,9 @@ pub fn render(
     playback: &PlaybackState,
     state: &mut LyricsPanelState,
     controller: Entity<PlaybackController>,
+    width: f32,
 ) -> AnyElement {
-    render_panel(playback, state, controller, false)
+    render_panel(playback, state, controller, false, width)
 }
 
 pub fn render_fullscreen(
@@ -150,7 +172,7 @@ pub fn render_fullscreen(
     state: &mut LyricsPanelState,
     controller: Entity<PlaybackController>,
 ) -> AnyElement {
-    render_panel(playback, state, controller, true)
+    render_panel(playback, state, controller, true, 0.)
 }
 
 fn render_panel(
@@ -158,6 +180,7 @@ fn render_panel(
     state: &mut LyricsPanelState,
     controller: Entity<PlaybackController>,
     fullscreen: bool,
+    width: f32,
 ) -> AnyElement {
     let lyrics = &playback.track.lyrics;
     let document_id = Arc::as_ptr(&lyrics.lines) as *const LyricLine as usize;
@@ -169,7 +192,6 @@ fn render_panel(
             .partition_point(|line| line.start.is_some_and(|start| start <= position))
             .min(lyrics.lines.len().saturating_sub(1))
     });
-    let has_word_timing = lyrics.lines.iter().any(|line| line.words.len() > 1);
     let gap = lyrics.gap_at(position, LYRIC_GAP_MINIMUM);
     if fullscreen {
         state.fullscreen.reset_for_document(document_id);
@@ -189,7 +211,7 @@ fn render_panel(
             .flex_none()
             .into_any_element(),
     );
-    let mut focus_child = 1;
+    let focus_child = 1 + focus + usize::from(gap.is_some_and(|gap| gap.previous < focus));
     let interaction = scroll_state.last_user_scroll.clone();
     let manually_scrolling = interaction.get().is_some_and(|last| {
         Instant::now().saturating_duration_since(last) < MANUAL_SCROLL_BLUR_PAUSE
@@ -204,21 +226,68 @@ fn render_panel(
         controller,
         interaction,
     };
+    let now = Instant::now();
+    let delta = scroll_state
+        .last_visual_frame
+        .replace(now)
+        .map_or(0., |last| now.saturating_duration_since(last).as_secs_f32());
+    let previous_focus = scroll_state.previous_focus;
+    let focus_changed = previous_focus.is_some_and(|previous| previous != focus);
+    let user_scrolling = scroll_state.last_user_scroll.get().is_some();
+    let previous_offset = scroll_state.handle.offset().y.as_f32();
+    update_scroll_position(scroll_state, focus, focus_child);
+    let scroll_offset = scroll_state.handle.offset().y.as_f32();
+    if focus_changed {
+        scroll_state.stagger_enabled = previous_focus.is_some_and(|previous| previous + 1 == focus);
+    }
+    if user_scrolling || lyrics.mode != LyricsMode::Synced || delta > 0.25 {
+        // Direct manipulation, seeking across lines and resuming a hidden panel
+        // use the common scroll position, without leaving trailing rows behind.
+        scroll_state.stagger_enabled = false;
+    }
     for index in 0..lyrics.lines.len() {
-        if index == focus {
-            focus_child = rows.len();
+        if index >= scroll_state.row_motion.len() {
+            scroll_state
+                .row_motion
+                .push(DelayedSpring::new(previous_offset));
         }
-        let edge_opacity = lyric_edge_opacity(&scroll_state.handle, rows.len());
+        let motion = &mut scroll_state.row_motion[index];
+        let row_offset = if scroll_state.stagger_enabled {
+            motion.advance(delta);
+            motion.retarget(
+                scroll_state.last_target.unwrap_or(scroll_offset),
+                focus_changed.then(|| row_delay(index, focus)),
+            );
+            motion.spring.value - scroll_offset
+        } else {
+            *motion = DelayedSpring::new(scroll_offset);
+            0.
+        };
+        let edge_opacity = lyric_edge_opacity(&scroll_state.handle, rows.len(), row_offset);
+        let target = lyric_visual_target(index, &row_context);
+        if index >= scroll_state.row_visuals.len() {
+            scroll_state.row_visuals.push(target);
+        }
+        let visual = &mut scroll_state.row_visuals[index];
+        visual.emphasis.advance(target.emphasis.value, delta);
+        visual.activation.advance(target.activation.value, delta);
+        visual.alpha.advance(target.alpha.value, delta);
+        visual
+            .resting_alpha
+            .advance(target.resting_alpha.value, delta);
+        visual.blur.advance(target.blur.value, delta);
         rows.push(lyric_row(
             &lyrics.lines[index],
             index,
             edge_opacity,
             &row_context,
+            *visual,
+            row_offset,
         ));
         if let Some(gap) = gap
             && gap.previous == index
         {
-            let edge_opacity = lyric_edge_opacity(&scroll_state.handle, rows.len());
+            let edge_opacity = lyric_edge_opacity(&scroll_state.handle, rows.len(), 0.);
             rows.push(lyric_gap_row(
                 gap,
                 position,
@@ -235,7 +304,6 @@ fn render_panel(
             .flex_none()
             .into_any_element(),
     );
-    update_scroll_position(scroll_state, focus, focus_child);
     let glow_time = if fullscreen {
         0.
     } else {
@@ -268,6 +336,12 @@ fn render_panel(
         .children(rows)
         .into_any_element();
 
+    let options = ColorFlowOptions::default()
+        .brightness(0.6)
+        .diffusion(0.22)
+        .saturation(0.9)
+        .motion(1.0)
+        .dither(1.0);
     div()
         .relative()
         .h_full()
@@ -278,7 +352,7 @@ fn render_panel(
         .when(fullscreen, |panel| panel.w_full())
         .when(!fullscreen, |panel| {
             panel
-                .w(px(layout::LYRICS_WIDTH))
+                .w(px(width))
                 .bg(rgb(0x2c2d32))
                 .border_l_1()
                 .border_color(rgba(0xffffff10))
@@ -290,12 +364,13 @@ fn render_panel(
                         .bottom_0()
                         .left_0()
                         .child(
-                            album_glow(gray_flow_image())
-                                .uniform(0, [0.34, 0.12, 0.58, 0.38])
-                                .uniform(1, [0.72, 0.46, 0.16, 0.41])
-                                .uniform(2, [0.06, 0.0, 0.0, 0.0])
-                                .bg(rgb(0x2c2d32))
-                                .effect_opacity(0.38)
+                            color_flow(gray_flow_image())
+                                .options(options)
+                                // .uniform(0, [0.34, 0.12, 0.58, 0.38])
+                                // .uniform(1, [0.72, 0.46, 0.16, 0.41])
+                                // .uniform(2, [0.06, 0.0, 0.0, 0.0])
+                                // .bg(rgb(0x2c2d32))
+                                // .effect_opacity(0.38)
                                 .time(glow_time)
                                 .size_full(),
                         ),
@@ -313,14 +388,8 @@ fn render_panel(
                     .justify_between()
                     .text_size(px(12.))
                     .font_weight(FontWeight::BOLD)
-                    .text_color(rgba(0xb7b8c28c))
-                    .child("LYRICS")
-                    .child(match lyrics.mode {
-                        LyricsMode::Synced if has_word_timing => "WORD SYNC",
-                        LyricsMode::Synced => "LINE SYNC",
-                        LyricsMode::Plain => "EMBEDDED",
-                        LyricsMode::Empty => "",
-                    }),
+                    .text_color(rgba(0xffffffe0))
+                    .child("LYRICS"),
             )
         })
         .child(
@@ -338,7 +407,7 @@ fn render_panel(
                             .px(px(24.))
                             .text_center()
                             .text_size(px(16.))
-                            .text_color(rgba(0xb7b8c278))
+                            .text_color(rgba(0xffffffe0))
                             .child("NO LYRICS"),
                     )
                 })
@@ -383,31 +452,32 @@ fn update_scroll_position(state: &mut LyricsScrollState, focus: usize, focus_chi
     } else if returning_from_user_scroll || focus_changed || target_changed {
         let from = state.handle.offset().y.as_f32();
         if (from - target).abs() > 0.5 {
-            state.animation = Some(ScrollAnimation {
-                from,
-                to: target,
-                started_at: now,
-                duration: if returning_from_user_scroll {
-                    Duration::from_millis(780)
-                } else {
-                    Duration::from_millis(620)
-                },
+            // Retarget the existing spring without discarding its velocity.
+            state.animation.get_or_insert(ScrollAnimation {
+                spring: Spring::new(from),
+                sampled_at: now,
             });
         }
     }
     state.last_target = Some(target);
 
-    if let Some(animation) = state.animation {
-        let progress = now
-            .saturating_duration_since(animation.started_at)
-            .as_secs_f32()
-            / animation.duration.as_secs_f32();
-        let progress = progress.clamp(0., 1.);
-        let value = animation.from + (animation.to - animation.from) * smootherstep(progress);
-        state
-            .handle
-            .set_offset(point(state.handle.offset().x, px(value)));
-        if progress >= 1. {
+    if let Some(animation) = state.animation.as_mut() {
+        let delta = now
+            .saturating_duration_since(animation.sampled_at)
+            .as_secs_f32();
+        animation.sampled_at = now;
+        animation.spring.advance(target, delta);
+        let max_offset = state.handle.max_offset().y.as_f32().max(0.);
+        let value = animation.spring.value.clamp(-max_offset, 0.);
+        if value != animation.spring.value {
+            animation.spring = Spring::new(value);
+        }
+        let settled = (value - target).abs() < 0.1 && animation.spring.velocity.abs() < 0.5;
+        state.handle.set_offset(point(
+            state.handle.offset().x,
+            px(if settled { target } else { value }),
+        ));
+        if settled {
             state.animation = None;
         }
     }
@@ -425,7 +495,7 @@ fn centered_scroll_target(handle: &ScrollHandle, item: usize) -> Option<f32> {
     Some(target.as_f32().clamp(-max_offset, 0.))
 }
 
-fn lyric_edge_opacity(handle: &ScrollHandle, item: usize) -> f32 {
+fn lyric_edge_opacity(handle: &ScrollHandle, item: usize, row_offset: f32) -> f32 {
     let viewport = handle.bounds();
     if viewport.size.height <= px(0.) {
         return 1.;
@@ -433,7 +503,7 @@ fn lyric_edge_opacity(handle: &ScrollHandle, item: usize) -> f32 {
     let Some(row) = handle.bounds_for_item(item) else {
         return 1.;
     };
-    let center = row.center().y + handle.offset().y;
+    let center = row.center().y + handle.offset().y + px(row_offset);
     let distance = (center - viewport.top())
         .as_f32()
         .min((viewport.bottom() - center).as_f32());
@@ -544,54 +614,80 @@ fn lyric_blur_radius(distance: usize, large: bool) -> f32 {
     (distance as f32 * step).min(maximum)
 }
 
+fn lyric_visual_target(index: usize, context: &LyricRowContext) -> LyricVisual {
+    let distance = index.abs_diff(context.focus);
+    let is_active = context.mode == LyricsMode::Synced && context.active == Some(index);
+    let blur_radius =
+        (!context.manually_scrolling && context.mode == LyricsMode::Synced && distance > 0)
+            .then(|| lyric_blur_radius(distance, context.large));
+    let resting_alpha: u32 = if context.mode == LyricsMode::Plain {
+        0xf0
+    } else {
+        // Scrolling to the upcoming line during a gap must not highlight it.
+        match distance {
+            0 | 1 => 0x80,
+            2 => 0x66,
+            3 => 0x52,
+            _ => 0x40,
+        }
+    };
+    let text_alpha = if is_active { 0xff } else { resting_alpha };
+    LyricVisual {
+        // Focus controls typography; playback activation alone controls color
+        // and word highlighting, including the wait before an upcoming line.
+        emphasis: Spring::new(
+            if context.mode == LyricsMode::Synced && index == context.focus {
+                1.
+            } else {
+                0.
+            },
+        ),
+        activation: Spring::new(if is_active { 1. } else { 0. }),
+        alpha: Spring::new(text_alpha as f32 / 255.),
+        resting_alpha: Spring::new(resting_alpha as f32 / 255.),
+        blur: Spring::new(blur_radius.unwrap_or(0.)),
+    }
+}
+
 fn lyric_row(
     line: &LyricLine,
     index: usize,
     edge_opacity: f32,
     context: &LyricRowContext,
+    visual: LyricVisual,
+    row_offset: f32,
 ) -> AnyElement {
-    let distance = index.abs_diff(context.focus);
-    let is_active = context.mode == LyricsMode::Synced && context.active == Some(index);
-    let is_dimmed = context.mode == LyricsMode::Synced && !is_active;
-    let blur_radius =
-        (!context.manually_scrolling && context.mode == LyricsMode::Synced && distance > 0)
-            .then(|| lyric_blur_radius(distance, context.large));
-    let text_alpha: u32 = if context.mode == LyricsMode::Plain {
-        0xc0
-    } else if context.active.is_none() {
-        match distance {
-            0 => 0xc0,
-            1 => 0x70,
-            2 => 0x50,
-            3 => 0x3a,
-            _ => 0x28,
-        }
-    } else {
-        match distance {
-            0 => 0xff,
-            1 => 0x78,
-            2 => 0x58,
-            3 => 0x3f,
-            _ => 0x2c,
-        }
-    };
-    let text_color = rgba(if is_dimmed { 0xaeb0b800 } else { 0xffffff00 } | text_alpha);
+    let emphasis = visual.emphasis.value.clamp(0., 1.);
+    let activation = visual.activation.value.clamp(0., 1.);
+    let text_alpha = (visual.alpha.value.clamp(0., 1.) * 255.).round() as u32;
+    let text_color = rgba(0xffffff00 | text_alpha);
+    let translation_color = rgba(0xffffff00 | text_alpha.saturating_sub(0x10));
+    let blur_radius = visual.blur.value.max(0.);
+    let font_weight = FontWeight::MEDIUM;
     let normal_text_size = if context.large { 24. } else { 16. };
     let active_text_size = if context.large { 28. } else { 19. };
-    let timed_units = is_active.then(|| timed_text_units(line)).flatten();
-    let primary = if let Some(units) = timed_units {
+    let text_size = normal_text_size
+        + (active_text_size - normal_text_size) * visual.emphasis.value.clamp(0., 1.03);
+    // Reserve each synced row's geometry, so changing visual size/weight cannot
+    // move the scroll target. Both layers share a left edge and line box.
+    // Keep the same glyph renderer before, during and after word activation.
+    // The unreached mask has a stable base color; only the reveal adds white.
+    let timed_units = timed_text_units(line);
+    let highlighted = if let Some(units) = timed_units {
         TimedText::new(line.text.clone(), units)
             .position(context.position)
             .active_fill(rgb(0xffffff))
-            .inactive_opacity(0.58)
-            .progressive_lift(if context.large { px(3.) } else { px(1.) })
+            .inactive_opacity(1.)
+            .progressive_lift(px(if context.large { 3. } else { 1. } * activation))
             .w_full()
             .line_height(relative(1.3))
             .reveal_wave_width(px(8.))
             .font_weight(FontWeight::BOLD)
-            .text_color(text_color)
+            .text_color(rgba(
+                0xffffff00 | (visual.resting_alpha.value.clamp(0., 1.) * 255.).round() as u32,
+            ))
             .into_any_element()
-    } else if let Some(blur_radius) = blur_radius {
+    } else {
         TextBlur::new(line.text.clone())
             .radius(px(blur_radius))
             .w_full()
@@ -599,34 +695,65 @@ fn lyric_row(
             .font_weight(FontWeight::BOLD)
             .text_color(text_color)
             .into_any_element()
+    };
+    let primary = if context.mode == LyricsMode::Plain {
+        div()
+            .font_weight(FontWeight::BOLD)
+            .child(line.text.clone())
+            .into_any_element()
     } else {
-        div().child(line.text.clone()).into_any_element()
+        div()
+            .relative()
+            .w_full()
+            .h(px(active_text_size * 1.3))
+            .child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .top_0()
+                    .w_full()
+                    .opacity(1. - emphasis)
+                    .child(
+                        TextBlur::new(line.text.clone())
+                            .radius(px(blur_radius))
+                            .w_full()
+                            .line_height(relative(1.3))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(text_color),
+                    ),
+            )
+            .when(emphasis > 0.001, |primary| {
+                primary.child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .top_0()
+                        .w_full()
+                        .opacity(emphasis)
+                        .child(highlighted),
+                )
+            })
+            .into_any_element()
     };
     let text = div().w_full().flex().flex_col().child(primary).when_some(
         line.translation.clone(),
         |text, translation| {
-            let translation = if let Some(blur_radius) = blur_radius {
+            let translation = if context.mode == LyricsMode::Synced {
                 TextBlur::new(translation)
                     .radius(px(blur_radius))
                     .mt(px(if context.large { 5. } else { 3. }))
                     .text_size(px(if context.large { 13.5 } else { 10.5 }))
                     .line_height(relative(1.25))
-                    .font_weight(FontWeight::BOLD)
-                    .text_color(rgba(0xaeb0b800 | text_alpha.saturating_sub(0x24)))
+                    .font_weight(font_weight)
+                    .text_color(translation_color)
                     .into_any_element()
             } else {
                 div()
                     .mt(px(if context.large { 5. } else { 3. }))
                     .text_size(px(if context.large { 13.5 } else { 10.5 }))
                     .line_height(relative(1.25))
-                    .font_weight(FontWeight::BOLD)
-                    .text_color(rgba(if is_active {
-                        0xffffffb8
-                    } else if is_dimmed {
-                        0xaeb0b800 | text_alpha.saturating_sub(0x24)
-                    } else {
-                        0xffffff00 | text_alpha.saturating_sub(0x24)
-                    }))
+                    .font_weight(font_weight)
+                    .text_color(translation_color)
                     .child(translation)
                     .into_any_element()
             };
@@ -638,15 +765,24 @@ fn lyric_row(
         .relative()
         .w_full()
         .min_h(px(if context.large { 64. } else { 44. }))
+        .when(context.mode == LyricsMode::Synced, |row| {
+            row.h(px(match (context.large, line.translation.is_some()) {
+                (true, true) => 72.,
+                (true, false) => 64.,
+                (false, true) => 56.,
+                (false, false) => 44.,
+            }))
+            .flex_none()
+        })
         .px(px(if context.large { 26. } else { 18. }))
         .py(px(if context.large { 3. } else { 2. }))
         .flex()
         .items_center()
         .rounded(px(18.))
-        .text_size(px(normal_text_size))
+        .text_size(px(text_size))
         .line_height(relative(1.3))
         .text_color(text_color)
-        .font_weight(FontWeight::BOLD)
+        .font_weight(font_weight)
         .opacity(edge_opacity)
         .child(text)
         .when_some(line.start, |row, start| {
@@ -660,24 +796,13 @@ fn lyric_row(
                 })
         });
 
-    if is_active {
-        let animation_id = SharedString::from(format!(
-            "lyric-focus-scale-{}-{index}",
-            if context.large { "large" } else { "inline" }
-        ));
-        row.with_animation(
-            animation_id,
-            Animation::new(Duration::from_millis(420)).with_easing(ease_out_quint()),
-            move |row, progress| {
-                row.text_size(px(
-                    normal_text_size + (active_text_size - normal_text_size) * progress
-                ))
-            },
-        )
+    // The scroll handle measures this stationary slot. Move the whole inner
+    // row (including its hover/click target), never the geometry used to center it.
+    div()
+        .w_full()
+        .flex_none()
+        .child(row.top(px(row_offset)))
         .into_any_element()
-    } else {
-        row.into_any_element()
-    }
 }
 
 pub(crate) fn timed_text_units(line: &LyricLine) -> Option<Vec<TimedTextUnit>> {
