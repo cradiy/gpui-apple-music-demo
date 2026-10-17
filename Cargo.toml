@@ -12,14 +12,14 @@ async-channel = "2.5"
 dirs = "7"
 flexi_logger = { version = "0.31", features = ["colors"] }
 
-gpui = { git = "https://github.com/cradiy/gpui.git", rev = "ed7aed3e16c58bd78735451c6a72918795a2d1ea" }
-gpui_effects = { git = "https://github.com/cradiy/gpui.git", rev = "ed7aed3e16c58bd78735451c6a72918795a2d1ea" }
-gpui_tokio = { git = "https://github.com/cradiy/gpui.git", rev = "ed7aed3e16c58bd78735451c6a72918795a2d1ea" }
-uic = { git = "https://github.com/cradiy/gpui.git", rev = "ed7aed3e16c58bd78735451c6a72918795a2d1ea" }
-gpui_media = { git = "https://github.com/cradiy/gpui.git", rev = "ed7aed3e16c58bd78735451c6a72918795a2d1ea", default-features = false, features = [
+gpui = { git = "https://github.com/cradiy/gpui.git", rev = "dc8189309c26f4c7ad433b56d995fbc6ad8392ec" }
+gpui_effects = { git = "https://github.com/cradiy/gpui.git", rev = "dc8189309c26f4c7ad433b56d995fbc6ad8392ec" }
+gpui_tokio = { git = "https://github.com/cradiy/gpui.git", rev = "dc8189309c26f4c7ad433b56d995fbc6ad8392ec" }
+uic = { git = "https://github.com/cradiy/gpui.git", rev = "dc8189309c26f4c7ad433b56d995fbc6ad8392ec" }
+gpui_media = { git = "https://github.com/cradiy/gpui.git", rev = "dc8189309c26f4c7ad433b56d995fbc6ad8392ec", default-features = false, features = [
   "audio",
 ] }
-gpui_platform = { git = "https://github.com/cradiy/gpui.git", rev = "ed7aed3e16c58bd78735451c6a72918795a2d1ea", features = [
+gpui_platform = { git = "https://github.com/cradiy/gpui.git", rev = "dc8189309c26f4c7ad433b56d995fbc6ad8392ec", features = [
   "font-kit",
   "wayland",
 ] }
