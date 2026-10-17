@@ -1,6 +1,7 @@
 mod memory;
 mod music_client;
 pub(crate) mod pages;
+mod panel_resize;
 mod sidebar;
 use std::{collections::HashMap, sync::Arc, time::Instant};
 
@@ -76,7 +77,9 @@ pub struct MusicShell {
     pub queue_ui: queue_panel::QueueUiState,
     pub playback_panel: PlaybackPanel,
     pub now_playing_lyrics: bool,
+    pub now_playing_panel_transition: now_playing::PanelTransition,
     pub lyrics_panel: lyrics_panel::LyricsPanelState,
+    panel_widths: panel_resize::PanelWidths,
     pub user_avatar: Option<Arc<Image>>,
     pub logging_out: bool,
     avatar_task: Option<Task<()>>,
@@ -158,7 +161,6 @@ impl MusicShell {
                     app.playback.update(cx, |playback, cx| {
                         playback.play_track(track.as_ref().clone(), cx)
                     });
-                    app.effects_viewer = None;
                     cx.notify();
                 }
                 ContentShellEvent::PlayFrom {
@@ -170,7 +172,6 @@ impl MusicShell {
                     app.playback.update(cx, |playback, cx| {
                         playback.play_from(tracks.clone(), *start, *shuffle, origin.clone(), cx)
                     });
-                    app.effects_viewer = None;
                     cx.notify();
                 }
                 ContentShellEvent::PlayNext(track) => {
@@ -283,7 +284,9 @@ impl MusicShell {
             playback_panel: PlaybackPanel::None,
             effects_viewer: None,
             now_playing_lyrics: true,
+            now_playing_panel_transition: now_playing::PanelTransition::default(),
             lyrics_panel: lyrics_panel::LyricsPanelState::default(),
+            panel_widths: panel_resize::PanelWidths::default(),
             user_avatar: None,
             logging_out: false,
             avatar_task: None,
@@ -304,7 +307,6 @@ impl MusicShell {
     ) {
         self.playback
             .update(cx, |playback, cx| playback.play_track(track, cx));
-        self.effects_viewer = None;
         cx.notify();
     }
 
@@ -405,7 +407,7 @@ impl Render for MusicShell {
     fn render(&mut self, window: &mut Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
         #[cfg(target_os = "macos")]
         window.set_traffic_light_position(if self.now_playing {
-            gpui::point(px(17.), px(28.))
+            gpui::point(px(17.), px(now_playing::WINDOW_CONTROLS_TOP + 10.))
         } else {
             gpui::point(px(34.), px(30.))
         });
@@ -419,6 +421,9 @@ impl Render for MusicShell {
         let wide_enough = width >= px(layout::HIDE_LYRICS_BELOW);
         let show_queue = self.playback_panel == PlaybackPanel::Queue && wide_enough;
         let show_inline_lyrics = self.playback_panel == PlaybackPanel::InlineLyrics && wide_enough;
+        let (sidebar_width, lyrics_width) =
+            self.panel_widths
+                .fitted(width.as_f32(), show_inline_lyrics, show_queue);
         let show_window_controls = window_controls::visible(cx);
         let controls_inset = if show_window_controls && !show_queue && !show_inline_lyrics {
             window_controls::width()
@@ -447,7 +452,15 @@ impl Render for MusicShell {
                     .blur_radius(px(28.))
                     .spread_radius(px(-7.)),
             ])
-            .child(div().m_2().flex().flex_col().child(self.sidebar.clone()))
+            .child(
+                div()
+                    .m(px(8.))
+                    .w(px(sidebar_width))
+                    .flex_none()
+                    .flex()
+                    .flex_col()
+                    .child(self.sidebar.clone()),
+            )
             .child(
                 div()
                     .flex_1()
@@ -488,11 +501,28 @@ impl Render for MusicShell {
                                 &playback,
                                 &mut self.lyrics_panel,
                                 self.playback.clone(),
+                                lyrics_width,
                             ),
                             show_window_controls,
                         ))
                     }),
             )
+            .child(panel_resize::handle(
+                panel_resize::Side::Sidebar,
+                sidebar_width,
+                show_inline_lyrics,
+                show_queue,
+                cx,
+            ))
+            .when(show_inline_lyrics, |root| {
+                root.child(panel_resize::handle(
+                    panel_resize::Side::Lyrics,
+                    lyrics_width,
+                    show_inline_lyrics,
+                    show_queue,
+                    cx,
+                ))
+            })
             .when(show_window_controls, |root| {
                 root.child(
                     div()

@@ -1,5 +1,5 @@
 use gpui::{AnyElement, Hsla, IntoElement, ParentElement, Styled, px, rgba, transparent_black};
-use gpui_effects::{FrostedGlass, FrostedGlassAppearance};
+use gpui_effects::{FrostedGlass, FrostedGlassAppearance, LiquidGlass, LiquidGlassAppearance};
 use uic::components::{
     context_menu::{ContextMenu, ContextMenuAppearance, ContextMenuSurfaceState},
     input::{Input, InputAppearance},
@@ -122,80 +122,72 @@ pub fn style_search(input: Input) -> Input {
 
 pub fn context_menu_appearance() -> ContextMenuAppearance {
     ContextMenuAppearance {
-        muted_foreground: rgba(0xaaa7b58f).into(),
+        muted_foreground: rgba(0xd6dce399).into(),
         danger_foreground: rgba(0xff6684ff).into(),
-        selected_background: rgba(0xfa35583d).into(),
+        selected_background: rgba(0xffffff22).into(),
         selected_foreground: rgba(0xffffffff).into(),
-        separator: rgba(0xffffff20).into(),
-        item_height: px(39.),
-        item_padding_x: px(12.),
-        item_radius: px(10.),
-        separator_margin: px(6.),
+        separator: rgba(0xffffff1f).into(),
+        item_height: px(27.),
+        item_padding_x: px(9.),
+        item_radius: px(6.),
+        separator_margin: px(4.),
     }
 }
 
 pub fn style_context_menu(menu: ContextMenu) -> ContextMenu {
     menu.appearance(context_menu_appearance())
-        .w(px(280.))
+        .w(px(250.))
         .max_h(px(560.))
-        .p(px(10.))
-        .rounded(px(16.))
-        .border(px(0.))
+        .p(px(6.))
+        .rounded(px(12.))
+        .border_1()
+        .border_color(rgba(0xd7e9ff38))
         .bg(transparent_black())
-        .text_color(rgba(0xf2f0f6f2))
-        .surface(frosted_menu_surface)
+        .text_size(px(12.))
+        .text_color(rgba(0xe7edf3ff))
+        .surface(liquid_menu_surface)
 }
 
-fn frosted_menu_surface(
+/// A dark reading surface with a restrained refractive rim. Tint is applied to
+/// the material, keeping the sampled backdrop visible and foreground text sharp.
+fn menu_glass_appearance() -> LiquidGlassAppearance {
+    LiquidGlassAppearance::dark()
+        .blur_radius(px(22.))
+        .clarity(0.08)
+        .refraction(px(4.))
+        .thickness(px(12.))
+        .dispersion(0.005)
+        .tint(rgba(0x07121bb8).into())
+        .brightness(0.82)
+        .saturation(1.08)
+        .highlight(0.24)
+        .edge_shadow(0.18)
+        .rim_width(px(0.7))
+}
+
+fn liquid_menu_surface(
     state: ContextMenuSurfaceState,
     content: AnyElement,
     _: &mut gpui::Window,
     _: &mut gpui::App,
 ) -> AnyElement {
-    frosted()
+    LiquidGlass::with_appearance(menu_glass_appearance())
         .id((
             "romus-menu-glass",
             state.session_id.saturating_mul(10) + state.depth as u64,
         ))
-        .rounded(px(16.))
-        .shadow_lg()
+        .rounded(px(12.))
+        .shadow(vec![
+            gpui::BoxShadow::new(px(0.), px(10.), rgba(0x00000055).into())
+                .blur_radius(px(28.))
+                .spread_radius(px(-4.)),
+        ])
         .child(content)
         .into_any_element()
 }
 
 pub fn style_fullscreen_context_menu(menu: ContextMenu) -> ContextMenu {
     style_context_menu(menu)
-        .appearance(ContextMenuAppearance {
-            selected_background: rgba(0xffffff22).into(),
-            separator: rgba(0xffffff12).into(),
-            muted_foreground: rgba(0xffffff80).into(),
-            ..context_menu_appearance()
-        })
-        .text_color(rgba(0xffffffe5))
-        .surface(|state, content, _, _| {
-            frosted()
-                .appearance(FrostedGlassAppearance {
-                    blur_radius: px(24.),
-                    tint: rgba(0xffffff13).into(),
-                    brightness: 1.,
-                    saturation: 1.,
-                    edge: rgba(0xffffff0a).into(),
-                    sheen: 0.,
-                    ..frosted_appearance()
-                })
-                .id((
-                    "romus-fullscreen-menu-glass",
-                    state.session_id.saturating_mul(10) + state.depth as u64,
-                ))
-                .rounded(px(16.))
-                .shadow(vec![
-                    gpui::BoxShadow::new(px(0.), px(6.), rgba(0x00000018).into())
-                        .blur_radius(px(20.))
-                        .spread_radius(px(-4.)),
-                ])
-                .child(content)
-                .into_any_element()
-        })
 }
 
 pub fn dark_modal_appearance() -> ModalAppearance {

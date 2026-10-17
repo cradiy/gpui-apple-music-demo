@@ -9,20 +9,20 @@ description = "An Apple Music-inspired demo built to show off a GPUI fork"
 [dependencies]
 anyhow = "1"
 async-channel = "2.5"
-dirs = "6"
+dirs = "7"
 flexi_logger = { version = "0.31", features = ["colors"] }
 
-gpui = { git = "https://github.com/cradiy/gpui.git", rev = "5fd13e4b6d984c95b1de2fdd6213a8fde0ab89ea" }
-gpui_effects = { git = "https://github.com/cradiy/gpui.git", rev = "5fd13e4b6d984c95b1de2fdd6213a8fde0ab89ea" }
-gpui_media = { git = "https://github.com/cradiy/gpui.git", rev = "5fd13e4b6d984c95b1de2fdd6213a8fde0ab89ea", default-features = false, features = [
+gpui = { git = "https://github.com/cradiy/gpui.git", rev = "ed7aed3e16c58bd78735451c6a72918795a2d1ea" }
+gpui_effects = { git = "https://github.com/cradiy/gpui.git", rev = "ed7aed3e16c58bd78735451c6a72918795a2d1ea" }
+gpui_tokio = { git = "https://github.com/cradiy/gpui.git", rev = "ed7aed3e16c58bd78735451c6a72918795a2d1ea" }
+uic = { git = "https://github.com/cradiy/gpui.git", rev = "ed7aed3e16c58bd78735451c6a72918795a2d1ea" }
+gpui_media = { git = "https://github.com/cradiy/gpui.git", rev = "ed7aed3e16c58bd78735451c6a72918795a2d1ea", default-features = false, features = [
   "audio",
 ] }
-gpui_platform = { git = "https://github.com/cradiy/gpui.git", rev = "5fd13e4b6d984c95b1de2fdd6213a8fde0ab89ea", features = [
+gpui_platform = { git = "https://github.com/cradiy/gpui.git", rev = "ed7aed3e16c58bd78735451c6a72918795a2d1ea", features = [
   "font-kit",
   "wayland",
 ] }
-gpui_tokio = { git = "https://github.com/cradiy/gpui.git", rev = "5fd13e4b6d984c95b1de2fdd6213a8fde0ab89ea" }
-uic = { git = "https://github.com/cradiy/gpui.git", rev = "5fd13e4b6d984c95b1de2fdd6213a8fde0ab89ea" }
 
 log = "0.4"
 symphonia = { version = "0.6.0", default-features = false, features = [
@@ -36,7 +36,7 @@ serde_json = "1"
 tokio = { version = "1.53.1", features = ["fs", "io-util", "macros", "sync"] }
 toml = "1.1"
 uuid = { version = "1.24.0", features = ["v4"] }
-zbus = "5.18"
+zbus = "5.19"
 
 [dev-dependencies]
 tempfile = "3"

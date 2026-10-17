@@ -127,7 +127,9 @@ fn decode_utf16(data: &[u8], allow_bom: bool) -> Option<String> {
         (true, data)
     };
     let units = data
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|chunk| {
             if big_endian {
                 u16::from_be_bytes([chunk[0], chunk[1]])

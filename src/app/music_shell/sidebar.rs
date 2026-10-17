@@ -30,7 +30,7 @@ use crate::{
     state::PlaylistStore,
     ui::{
         components::media_cover::{self, CoverSource},
-        theme::{self, layout},
+        theme,
     },
 };
 
@@ -781,7 +781,7 @@ impl gpui::Render for Sidebar {
                 ..theme::frosted_appearance()
             })
             .rounded(px(25.))
-            .w(px(layout::SIDEBAR_WIDTH + layout::SIDEBAR_GUTTER))
+            .w_full()
             .flex_1()
             .child(
                 div()

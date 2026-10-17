@@ -260,7 +260,6 @@ pub fn render(
                                             )
                                             .on_click(cx.listener(|app, _, _, cx| {
                                                 app.now_playing = true;
-                                                app.effects_viewer = None;
                                                 cx.notify();
                                             })),
                                     )
@@ -497,7 +496,7 @@ pub fn render_now_playing(
                 .justify_between()
                 .text_size(px(9.))
                 .font_weight(FontWeight::MEDIUM)
-                .text_color(rgba(0xffffff72))
+                .text_color(rgba(0xffffffe0))
                 .child(elapsed)
                 .child(remaining),
         )

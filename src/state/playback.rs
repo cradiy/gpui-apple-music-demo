@@ -50,6 +50,12 @@ pub struct PlaybackController {
 impl EventEmitter<PlaybackEvent> for PlaybackController {}
 
 impl PlaybackController {
+    pub(crate) fn artwork_is_loading(&self) -> bool {
+        self.metadata_task.is_some()
+            && self.snapshot.track.artwork.is_none()
+            && self.queue.current().is_some_and(|track| track.has_artwork)
+    }
+
     pub fn new(cx: &mut gpui::Context<Self>) -> Self {
         let snapshot = PlaybackState::empty();
         let memory_store = PlaybackMemoryStore::load_default()
@@ -292,6 +298,7 @@ impl PlaybackController {
 
     pub fn play_queue_key(&mut self, key: u64, cx: &mut gpui::Context<Self>) {
         if self.queue.current_key() == Some(key) {
+            self.restart_finished_track(cx);
             return;
         }
         let Some(track) = self.queue.jump_key(key) else {
@@ -385,6 +392,9 @@ impl PlaybackController {
     }
 
     fn restart_current(&mut self, cx: &mut gpui::Context<Self>) {
+        if self.restart_finished_track(cx) {
+            return;
+        }
         let Some(player) = self.player.clone() else {
             if let Some(track) = self.queue.current().cloned() {
                 self.start_track(track, cx);
@@ -405,6 +415,18 @@ impl PlaybackController {
         }
         self.publish_mpris();
         cx.notify();
+    }
+
+    fn restart_finished_track(&mut self, cx: &mut gpui::Context<Self>) -> bool {
+        if matches!(
+            self.snapshot.status,
+            MediaPlaybackState::Ended | MediaPlaybackState::Error(_)
+        ) && let Some(track) = self.queue.current().cloned()
+        {
+            self.start_track(track, cx);
+            return true;
+        }
+        false
     }
 
     fn start_track(&mut self, track: TrackResponse, cx: &mut gpui::Context<Self>) {
@@ -479,6 +501,9 @@ impl PlaybackController {
     }
 
     pub fn toggle_playback(&mut self, cx: &mut gpui::Context<Self>) {
+        if self.restart_finished_track(cx) {
+            return;
+        }
         let Some(player) = self.player.clone() else {
             return;
         };
@@ -490,6 +515,9 @@ impl PlaybackController {
     }
 
     pub fn set_playing(&mut self, playing: bool, cx: &mut gpui::Context<Self>) {
+        if playing && self.restart_finished_track(cx) {
+            return;
+        }
         let Some(player) = self.player.clone() else {
             return;
         };
@@ -761,6 +789,9 @@ impl PlaybackController {
             AudioPlayer::new(source, options, cx).expect("failed to start the audio decoder thread")
         });
         cx.subscribe(&player, |controller, player, event, cx| {
+            if controller.player.as_ref() != Some(&player) {
+                return;
+            }
             match event {
                 AudioPlayerEvent::StateChanged(state) => {
                     if let MediaPlaybackState::Error(error) = state

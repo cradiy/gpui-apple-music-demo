@@ -27,8 +27,38 @@ fn titlebar() -> Option<TitlebarOptions> {
     }
 }
 
-#[tokio::main]
-async fn main() -> ExitCode {
+fn main() -> ExitCode {
+    #[cfg(target_os = "linux")]
+    configure_audio_identity();
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("failed to start the application runtime")
+        .block_on(run())
+}
+
+#[cfg(target_os = "linux")]
+fn configure_audio_identity() {
+    const PROPERTIES: &str = r#"application.name = "Romus demo"
+application.id = "romus demo"
+application.icon-name = "multimedia-player"
+node.description = "Romus demo"
+media.name = "Music"
+media.role = "Music""#;
+
+    let configured = std::env::var("PIPEWIRE_ALSA").unwrap_or_default();
+    let configured = configured.trim();
+    let configured = configured
+        .strip_prefix('{')
+        .and_then(|value| value.strip_suffix('}'))
+        .unwrap_or(configured);
+    // SAFETY: Called from main before the runtime, logger, or audio threads are started.
+    unsafe {
+        std::env::set_var("PIPEWIRE_ALSA", format!("{PROPERTIES}\n{configured}"));
+    }
+}
+
+async fn run() -> ExitCode {
     let loaded_config = match LoadedClientConfig::load_default() {
         Ok(config) => config,
         Err(error) => {
@@ -51,10 +81,6 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    if let Err(error) = gpui_media::init() {
-        eprintln!("Unable to initialize audio playback: {error}");
-        return ExitCode::FAILURE;
-    }
     gpui_platform::application()
         .with_assets(AppAssets::new())
         .run(move |cx: &mut App| {
