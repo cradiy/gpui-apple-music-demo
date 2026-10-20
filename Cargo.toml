@@ -6,20 +6,25 @@ license = "MIT"
 readme = "README.md"
 description = "An Apple Music-inspired demo built to show off a GPUI fork"
 
+[workspace]
+members = ["apps/android"]
+default-members = ["."]
+resolver = "3"
+
 [dependencies]
 anyhow = "1"
 async-channel = "2.5"
 dirs = "7"
 flexi_logger = { version = "0.31", features = ["colors"] }
 
-gpui = { git = "https://github.com/cradiy/gpui.git", rev = "dc8189309c26f4c7ad433b56d995fbc6ad8392ec" }
-gpui_effects = { git = "https://github.com/cradiy/gpui.git", rev = "dc8189309c26f4c7ad433b56d995fbc6ad8392ec" }
-gpui_tokio = { git = "https://github.com/cradiy/gpui.git", rev = "dc8189309c26f4c7ad433b56d995fbc6ad8392ec" }
-uic = { git = "https://github.com/cradiy/gpui.git", rev = "dc8189309c26f4c7ad433b56d995fbc6ad8392ec" }
-gpui_media = { git = "https://github.com/cradiy/gpui.git", rev = "dc8189309c26f4c7ad433b56d995fbc6ad8392ec", default-features = false, features = [
+gpui = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "8e3fada60c6b07800a73764e3735b0751c2c1416" }
+gpui_effects = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "8e3fada60c6b07800a73764e3735b0751c2c1416" }
+gpui_tokio = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "8e3fada60c6b07800a73764e3735b0751c2c1416" }
+uic = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "8e3fada60c6b07800a73764e3735b0751c2c1416" }
+gpui_media = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "8e3fada60c6b07800a73764e3735b0751c2c1416", default-features = false, features = [
   "audio",
 ] }
-gpui_platform = { git = "https://github.com/cradiy/gpui.git", rev = "dc8189309c26f4c7ad433b56d995fbc6ad8392ec", features = [
+gpui_platform = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "8e3fada60c6b07800a73764e3735b0751c2c1416", features = [
   "font-kit",
   "wayland",
 ] }
@@ -36,7 +41,6 @@ serde_json = "1"
 tokio = { version = "1.53.1", features = ["fs", "io-util", "macros", "sync"] }
 toml = "1.1"
 uuid = { version = "1.24.0", features = ["v4"] }
-zbus = "5.19"
 
 [dev-dependencies]
 tempfile = "3"
@@ -48,3 +52,24 @@ windows-sys = { version = "0.61", features = [
   "Win32_Graphics_Dwm",
   "Win32_Storage_FileSystem",
 ] }
+
+[profile.dev.package]
+cosmic-text = { opt-level = 3 }
+harfrust = { opt-level = 3 }
+skrifa = { opt-level = 3 }
+read-fonts = { opt-level = 3 }
+font-types = { opt-level = 3 }
+swash = { opt-level = 3 }
+fontdb = { opt-level = 3 }
+unicode-bidi = { opt-level = 3 }
+unicode-linebreak = { opt-level = 3 }
+unicode-segmentation = { opt-level = 3 }
+rangemap = { opt-level = 3 }
+smol_str = { opt-level = 3 }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5.19"
+
+[target.'cfg(target_os = "android")'.dependencies]
+gpui_media = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "8e3fada60c6b07800a73764e3735b0751c2c1416", default-features = false, features = ["video"] }
+gpui_media_backend = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "8e3fada60c6b07800a73764e3735b0751c2c1416", default-features = false }

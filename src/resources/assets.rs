@@ -6,6 +6,7 @@ use uic::assets::LucideAssets;
 #[derive(RustEmbed)]
 #[folder = "assets"]
 #[include = "icons/*.svg"]
+#[include = "icons/android/*.svg"]
 pub struct AppAssets;
 
 impl AppAssets {

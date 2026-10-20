@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20.0" height="21.0" viewBox="0 0 20.0 21.0">
+  <g fill="none" stroke="#F1F1F5" stroke-width="1.79999983" stroke-linecap="round" stroke-linejoin="round" transform="matrix(1.00000000 0 0 1.00000000 -3.10000008 -2.10000008)">
+    <path d="M4 5h12" />
+    <path d="M4 10h9" />
+    <path d="M4 15h6" />
+    <path d="M17 11v9" />
+    <path d="M17 11l4-1v3" />
+    <ellipse cx="14.5" cy="20" rx="2.5" ry="2" />
+    <path d="M20 3v4" />
+    <path d="M18 5h4" />
+  </g>
+</svg>

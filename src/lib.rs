@@ -1,6 +1,7 @@
 pub mod app;
 pub mod audio_metadata;
 pub mod domain;
+pub mod mobile;
 pub mod resources;
 pub mod services;
 pub mod state;

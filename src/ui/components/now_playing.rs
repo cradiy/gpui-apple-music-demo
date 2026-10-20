@@ -8,7 +8,7 @@ use gpui::{
     ObjectFit, SharedString, Stateful, Window, div, img, prelude::*, px, rgb, rgba, svg,
 };
 use gpui_effects::{
-    ColorFlowOptions, LiquidGlass, LiquidGlassAppearance, color_flow, paint_liquid_glass,
+    ArtworkFlowOptions, LiquidGlass, LiquidGlassAppearance, artwork_flow, paint_liquid_glass,
 };
 use uic::{
     assets::LucideIcons,
@@ -70,6 +70,23 @@ impl PanelTransition {
     }
 }
 
+pub(crate) fn render_background(artwork: ImageSource, elapsed: f32) -> AnyElement {
+    render_background_rounded(artwork, elapsed, px(0.))
+}
+
+pub(crate) fn render_background_rounded(
+    artwork: ImageSource,
+    elapsed: f32,
+    radius: gpui::Pixels,
+) -> AnyElement {
+    artwork_flow("player-artwork-background", artwork)
+        .options(ArtworkFlowOptions::default().motion(1.5).dither(2.))
+        .time(elapsed)
+        .size_full()
+        .rounded(radius)
+        .into_any_element()
+}
+
 pub fn render(
     app: &mut MusicShell,
     window: &mut Window,
@@ -105,7 +122,7 @@ pub fn render(
             app.effects_viewer = Some(EffectsViewer {
                 track_id,
                 album_cover: artwork,
-                started_at: Instant::now(),
+                clock: Default::default(),
             });
         }
     }
@@ -113,10 +130,13 @@ pub fn render(
         .effects_viewer
         .as_ref()
         .map(|effect| effect.album_cover.clone());
-    let background = app.effects_viewer.as_ref().map(|effect| {
+    let background = app.effects_viewer.as_mut().map(|effect| {
         (
             effect.album_cover.clone(),
-            effect.started_at.elapsed().as_secs_f32(),
+            effect.clock.sample(
+                Instant::now(),
+                playback.is_playing() && window.is_window_active(),
+            ),
         )
     });
     let title = playback.track.title.clone();
@@ -160,6 +180,14 @@ pub fn render(
             .into_any_element()
     };
 
+    if window.is_window_active()
+        && (playback.is_playing()
+            || panel_opacity < 1.
+            || (show_lyrics && app.lyrics_panel.is_animating(&playback, true)))
+    {
+        window.request_animation_frame();
+    }
+
     div()
         .relative()
         .size_full()
@@ -179,20 +207,7 @@ pub fn render(
                 .when_some(
                     background,
                     |background, (effect_artwork, background_time)| {
-                        background.child(
-                            color_flow(effect_artwork)
-                                .options(
-                                    ColorFlowOptions::default()
-                                        .brightness(0.85)
-                                        .cohesion(0.85)
-                                        .drift(0.45), // .diffusion(0.22)
-                                                      // .saturation(0.9)
-                                                      // .motion(1.0)
-                                                      // .dither(1.0),
-                                )
-                                .time(background_time)
-                                .size_full(),
-                        )
+                        background.child(render_background(effect_artwork.into(), background_time))
                     },
                 ),
         )
@@ -630,7 +645,7 @@ pub(crate) fn playback_artwork(playback: &crate::domain::PlaybackState) -> Arc<I
         .unwrap_or_else(fallback_cover)
 }
 
-fn fallback_cover() -> Arc<Image> {
+pub(crate) fn fallback_cover() -> Arc<Image> {
     static COVER: OnceLock<Arc<Image>> = OnceLock::new();
     COVER
         .get_or_init(|| {

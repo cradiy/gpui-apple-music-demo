@@ -81,6 +81,10 @@ On Linux, inline window buttons appear at the top right by default. To hide them
 
 It remains a demo for GPUI desktop UI, media playback, and animated visual effects, but its library, search, queue, favorites, and playlist features are fully implemented as a local player. It has no account or cloud dependency: songs stay at their original paths, while library and playlist information is recorded in local configuration.
 
+## Android
+
+See [Android build and run instructions](apps/android/README.md).
+
 ## License and credits
 
 本 demo 采用 [MIT License](LICENSE)，喜欢就拿去玩。要是你顺手又加了什么有意思的功能，记得回来告诉我。

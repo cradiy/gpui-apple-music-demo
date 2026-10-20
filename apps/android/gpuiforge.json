@@ -1,0 +1,89 @@
+{
+  "$schema": "./gpuiforge.schema.json",
+  "app": {
+    "name": "Romus demo"
+  },
+  "platforms": {
+    "android": {
+      "abis": [
+        "arm64-v8a",
+        "x86_64"
+      ],
+      "application-id": "dev.romus.demo",
+      "build": [
+        {
+          "args": [
+            "gradle",
+            "--",
+            "--no-daemon",
+            "-PgpuiAbis={{abis}}",
+            "-PgpuiForgeExecutable={{tool_path}}",
+            ":app:assemble{{variant}}"
+          ],
+          "cwd": "{{project_dir}}",
+          "program": "{{tool_path}}"
+        }
+      ],
+      "features": ["files", "media", "background-media"],
+      "notification-icon": "assets/ic_media_notification.xml",
+      "inset-handling": "application",
+      "permissions": [
+        "android.permission.WAKE_LOCK",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ],
+      "run": [
+        {
+          "args": [
+            "-s",
+            "{{device}}",
+            "install",
+            "-r",
+            "{{artifact}}"
+          ],
+          "program": "{{adb}}"
+        },
+        {
+          "args": [
+            "-s",
+            "{{device}}",
+            "shell",
+            "am",
+            "start",
+            "-W",
+            "-n",
+            "{{application_id}}/{{activity}}"
+          ],
+          "error-pattern": "Error:",
+          "program": "{{adb}}"
+        }
+      ]
+    },
+    "desktop": {
+      "build": [
+        {
+          "args": [
+            "build",
+            "-p",
+            "romus-android",
+            "--profile",
+            "{{cargo_profile}}"
+          ],
+          "program": "cargo"
+        }
+      ],
+      "run": [
+        {
+          "args": [
+            "run",
+            "-p",
+            "romus-android",
+            "--profile",
+            "{{cargo_profile}}"
+          ],
+          "program": "cargo"
+        }
+      ]
+    }
+  }
+}

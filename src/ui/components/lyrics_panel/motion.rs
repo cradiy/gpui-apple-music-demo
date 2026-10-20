@@ -52,6 +52,12 @@ impl DelayedSpring {
         }
     }
 
+    pub fn is_settled(&self) -> bool {
+        self.pending.is_none()
+            && (self.spring.value - self.target).abs() < 0.0001
+            && self.spring.velocity.abs() < 0.001
+    }
+
     pub fn retarget(&mut self, target: f32, delay: Option<f32>) {
         if let Some(delay) = delay {
             self.pending = Some((target, delay));

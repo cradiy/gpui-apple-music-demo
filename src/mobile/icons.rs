@@ -1,0 +1,49 @@
+use gpui::{ColorSvg, Styled, color_svg, px};
+
+pub fn icon(name: &str, scale: f32) -> ColorSvg {
+    let (path, width, height) = match name {
+        "home-active" => ("icons/android/home-active.svg", 24.250, 23.250),
+        "home" => ("icons/android/home.svg", 25.500, 24.000),
+        "library" => ("icons/android/library.svg", 24.500, 25.500),
+        "library-active" => ("icons/android/library-active.svg", 24.500, 25.500),
+        "search" => ("icons/android/search.svg", 19.000, 19.000),
+        "search-muted" => ("icons/android/search-muted.svg", 15.750, 15.750),
+        "plus" => ("icons/android/plus.svg", 16.000, 16.000),
+        "more" => ("icons/android/more.svg", 18.000, 4.000),
+        "down" => ("icons/android/down.svg", 16.000, 9.000),
+        "heart" => ("icons/android/heart.svg", 23.000, 20.500),
+        "heart-filled" => ("icons/android/heart-filled.svg", 21.250, 18.500),
+        "shuffle" => ("icons/android/shuffle.svg", 18.250, 20.000),
+        "shuffle-active" => ("icons/android/shuffle-active.svg", 18.250, 20.000),
+        "repeat" => ("icons/android/repeat.svg", 18.250, 20.000),
+        "repeat-active" => ("icons/android/repeat-active.svg", 18.250, 20.000),
+        "previous" => ("icons/android/previous.svg", 23.750, 19.500),
+        "next" => ("icons/android/next.svg", 23.750, 19.500),
+        "pause" => ("icons/android/pause.svg", 15.500, 21.500),
+        "play" => ("icons/android/play.svg", 15.500, 19.250),
+        "mini-pause" => ("icons/android/mini-pause.svg", 11.500, 16.000),
+        "mini-next" => ("icons/android/mini-next.svg", 16.000, 13.000),
+        "lyrics" => ("icons/android/lyrics.svg", 25.500, 24.500),
+        "lyrics-active" => ("icons/android/lyrics-active.svg", 25.500, 24.500),
+        "lyrics-empty" => ("icons/android/lyrics-empty.svg", 34.750, 33.000),
+        "device" => ("icons/android/device.svg", 25.500, 24.500),
+        "queue" => ("icons/android/queue.svg", 26.750, 22.000),
+        "play-accent" => ("icons/android/play-accent.svg", 8.750, 10.750),
+        "shuffle-accent" => ("icons/android/shuffle-accent.svg", 14.250, 15.500),
+        "menu-heart" => ("icons/android/menu-heart.svg", 20.250, 18.000),
+        "play-next" => ("icons/android/play-next.svg", 19.000, 20.000),
+        "add-queue" => ("icons/android/add-queue.svg", 20.000, 19.000),
+        "add-playlist" => ("icons/android/add-playlist.svg", 20.000, 21.000),
+        "info" => ("icons/android/info.svg", 20.000, 20.000),
+        "trash" => ("icons/android/trash.svg", 20.000, 20.000),
+        "folder" => ("icons/android/folder.svg", 22.000, 20.000),
+        "import-files" => ("icons/android/import-files.svg", 19.750, 19.750),
+        "back" => ("icons/android/back.svg", 10.000, 18.000),
+        "mini-play" => ("icons/android/mini-play.svg", 11.750, 14.500),
+        _ => unreachable!("unknown design icon: {name}"),
+    };
+    color_svg()
+        .path(path)
+        .w(px(width * scale))
+        .h(px(height * scale))
+}

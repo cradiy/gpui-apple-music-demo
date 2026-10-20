@@ -9,7 +9,9 @@ use gpui::{
     Animation, AnimationExt, AnyElement, Entity, FontWeight, Image, ImageFormat, ScrollHandle,
     SharedString, div, point, prelude::*, px, relative, rgb, rgba,
 };
-use gpui_effects::{ColorFlowOptions, TextBlur, TimedText, TimedTextUnit, color_flow};
+use gpui_effects::{
+    BloomOptions, ColorFlowOptions, TextBlur, TimedText, TimedTextUnit, color_flow, subtree_bloom,
+};
 
 mod motion;
 use motion::{DelayedSpring, Spring, row_delay};
@@ -26,6 +28,57 @@ pub struct LyricsPanelState {
     fullscreen: LyricsScrollState,
     clock: LyricsPresentationClock,
     glow_started_at: Option<Instant>,
+    mobile_layout: Option<MobileLyricsLayout>,
+}
+
+impl LyricsPanelState {
+    pub(crate) fn is_animating(&self, playback: &PlaybackState, fullscreen: bool) -> bool {
+        let state = if fullscreen {
+            &self.fullscreen
+        } else {
+            &self.inline
+        };
+        let position = Duration::from_secs_f64(self.clock.presented_seconds.max(0.));
+        state.animation.is_some()
+            || (playback.is_playing()
+                && playback
+                    .track
+                    .lyrics
+                    .active_index(position)
+                    .is_some_and(|index| {
+                        playback.track.lyrics.lines[index]
+                            .words
+                            .iter()
+                            .any(|word| position >= word.start && position < word.end)
+                    }))
+            || state.row_motion.iter().any(|row| !row.is_settled())
+            || state.row_visuals.iter().any(|visual| {
+                [
+                    visual.emphasis,
+                    visual.activation,
+                    visual.alpha,
+                    visual.resting_alpha,
+                    visual.blur,
+                ]
+                .iter()
+                .any(|spring| spring.velocity.abs() >= 0.001)
+            })
+    }
+}
+
+pub type LyricsSeek = Rc<dyn Fn(Duration, &mut gpui::App)>;
+
+struct MobileLyricsLayout {
+    document_id: usize,
+    width: f32,
+    rows: Rc<Vec<MobileLyricRow>>,
+}
+
+struct MobileLyricRow {
+    primary_height: f32,
+    height: f32,
+    primary: Vec<LyricLine>,
+    translations: Vec<SharedString>,
 }
 
 #[derive(Default)]
@@ -154,7 +207,9 @@ struct LyricRowContext {
     position: Duration,
     large: bool,
     manually_scrolling: bool,
-    controller: Entity<PlaybackController>,
+    seek: LyricsSeek,
+    mobile_rows: Option<Rc<Vec<MobileLyricRow>>>,
+    scale: f32,
     interaction: Rc<Cell<Option<Instant>>>,
 }
 
@@ -164,7 +219,10 @@ pub fn render(
     controller: Entity<PlaybackController>,
     width: f32,
 ) -> AnyElement {
-    render_panel(playback, state, controller, false, width)
+    let seek: LyricsSeek = Rc::new(move |start, cx| {
+        controller.update(cx, |player, cx| player.seek_to(start, cx));
+    });
+    render_panel(playback, state, seek, false, width, None)
 }
 
 pub fn render_fullscreen(
@@ -172,16 +230,115 @@ pub fn render_fullscreen(
     state: &mut LyricsPanelState,
     controller: Entity<PlaybackController>,
 ) -> AnyElement {
-    render_panel(playback, state, controller, true, 0.)
+    let seek: LyricsSeek = Rc::new(move |start, cx| {
+        controller.update(cx, |player, cx| player.seek_to(start, cx));
+    });
+    render_panel(playback, state, seek, true, 0., None)
+}
+
+pub fn render_mobile(
+    playback: &PlaybackState,
+    state: &mut LyricsPanelState,
+    seek: LyricsSeek,
+    width: f32,
+    window: &gpui::Window,
+) -> AnyElement {
+    let document_id = Arc::as_ptr(&playback.track.lyrics.lines) as *const LyricLine as usize;
+    if state
+        .mobile_layout
+        .as_ref()
+        .is_none_or(|layout| layout.document_id != document_id || layout.width != width)
+    {
+        let scale = width / 392.;
+        // TextBlur and TimedText paint one shaped line. Split only their visual
+        // fragments; the document, seek target and spring remain one lyric row.
+        let wrap = |text: SharedString, size: f32, weight: FontWeight| {
+            let mut font = gpui::font("Noto Sans CJK SC");
+            font.weight = weight;
+            let run = gpui::TextRun {
+                len: text.len(),
+                font,
+                ..Default::default()
+            };
+            let mut ranges = Vec::new();
+            if let Ok(lines) = window.text_system().shape_text(
+                text.clone(),
+                px(size * scale),
+                &[run],
+                Some(px(width - 64. * scale)),
+                None,
+            ) {
+                let mut base = 0;
+                for line in lines {
+                    let mut start = 0;
+                    for boundary in &line.wrap_boundaries {
+                        let end = line.unwrapped_layout.runs[boundary.run_ix].glyphs
+                            [boundary.glyph_ix]
+                            .index;
+                        if end > start {
+                            ranges.push(base + start..base + end);
+                            start = end;
+                        }
+                    }
+                    ranges.push(base + start..base + line.text.len());
+                    base += line.text.len() + 1;
+                }
+            }
+            if ranges.is_empty() {
+                ranges.push(0..text.len());
+            }
+            ranges
+        };
+        let rows = playback
+            .track
+            .lyrics
+            .lines
+            .iter()
+            .map(|line| {
+                let primary = wrap(line.text.clone(), 28., FontWeight::BOLD)
+                    .into_iter()
+                    .map(|range| slice_lyric_line(line, range))
+                    .collect::<Vec<_>>();
+                let translations = line.translation.as_ref().map_or_else(Vec::new, |text| {
+                    wrap(text.clone(), 13.5, FontWeight::MEDIUM)
+                        .into_iter()
+                        .map(|range| SharedString::from(text[range].to_owned()))
+                        .collect()
+                });
+                let primary_height = primary.len() as f32 * 28. * scale * 1.3;
+                let translation_height = if translations.is_empty() {
+                    0.
+                } else {
+                    translations.len() as f32 * 13.5 * scale * 1.25 + 5. * scale
+                };
+                MobileLyricRow {
+                    primary_height,
+                    height: (primary_height + translation_height + 16. * scale).max(64. * scale),
+                    primary,
+                    translations,
+                }
+            })
+            .collect();
+        state.mobile_layout = Some(MobileLyricsLayout {
+            document_id,
+            width,
+            rows: Rc::new(rows),
+        });
+    }
+    let rows = state.mobile_layout.as_ref().unwrap().rows.clone();
+    render_panel(playback, state, seek, true, width, Some(rows))
 }
 
 fn render_panel(
     playback: &PlaybackState,
     state: &mut LyricsPanelState,
-    controller: Entity<PlaybackController>,
+    seek: LyricsSeek,
     fullscreen: bool,
     width: f32,
+    mobile_rows: Option<Rc<Vec<MobileLyricRow>>>,
 ) -> AnyElement {
+    let mobile = mobile_rows.is_some();
+    let scale = if mobile { width / 392. } else { 1. };
     let lyrics = &playback.track.lyrics;
     let document_id = Arc::as_ptr(&lyrics.lines) as *const LyricLine as usize;
     let position = state.clock.position(document_id, playback);
@@ -207,7 +364,13 @@ fn render_panel(
     rows.push(
         div()
             .w_full()
-            .h(px(if fullscreen { 300. } else { 160. }))
+            .h(px(if mobile {
+                100. * scale
+            } else if fullscreen {
+                300.
+            } else {
+                160.
+            }))
             .flex_none()
             .into_any_element(),
     );
@@ -223,7 +386,9 @@ fn render_panel(
         position,
         large: fullscreen,
         manually_scrolling,
-        controller,
+        seek,
+        mobile_rows,
+        scale,
         interaction,
     };
     let now = Instant::now();
@@ -315,6 +480,7 @@ fn render_panel(
     };
     let scroll_handle = scroll_state.handle.clone();
     let scroll_interaction = scroll_state.last_user_scroll.clone();
+    let touch_interaction = scroll_state.last_user_scroll.clone();
     let rows = div()
         .id(if fullscreen {
             "fullscreen-lyrics-scroll"
@@ -322,9 +488,16 @@ fn render_panel(
             "inline-lyrics-scroll"
         })
         .w_full()
-        .when(fullscreen, |lyrics| lyrics.h(relative(0.98)))
+        .when(fullscreen && !mobile, |lyrics| lyrics.h(relative(0.98)))
+        .when(mobile, |lyrics| lyrics.h_full().min_h_0())
         .when(!fullscreen, |lyrics| lyrics.h_full().min_h_0())
-        .px(px(if fullscreen { 30. } else { 22. }))
+        .px(px(if mobile {
+            0.
+        } else if fullscreen {
+            30.
+        } else {
+            22.
+        }))
         .flex()
         .flex_col()
         .gap(px(if fullscreen { 10. } else { 8. }))
@@ -332,6 +505,11 @@ fn render_panel(
         .track_scroll(&scroll_handle)
         .on_scroll_wheel(move |_, _, _| {
             scroll_interaction.set(Some(Instant::now()));
+        })
+        .when(mobile, |rows| {
+            rows.on_mouse_down(gpui::MouseButton::Left, move |_, _, _| {
+                touch_interaction.set(Some(Instant::now()))
+            })
         })
         .children(rows)
         .into_any_element();
@@ -657,6 +835,17 @@ fn lyric_row(
     visual: LyricVisual,
     row_offset: f32,
 ) -> AnyElement {
+    if edge_opacity <= 0. && context.mode == LyricsMode::Synced {
+        if let Some(rows) = &context.mobile_rows {
+            return div()
+                .id(("lyric-row", index))
+                .w_full()
+                .h(px(rows[index].height))
+                .min_h(px(64.))
+                .flex_none()
+                .into_any_element();
+        }
+    }
     let emphasis = visual.emphasis.value.clamp(0., 1.);
     let activation = visual.activation.value.clamp(0., 1.);
     let text_alpha = (visual.alpha.value.clamp(0., 1.) * 255.).round() as u32;
@@ -664,93 +853,179 @@ fn lyric_row(
     let translation_color = rgba(0xffffff00 | text_alpha.saturating_sub(0x10));
     let blur_radius = visual.blur.value.max(0.);
     let font_weight = FontWeight::MEDIUM;
-    let normal_text_size = if context.large { 24. } else { 16. };
-    let active_text_size = if context.large { 28. } else { 19. };
+    let normal_text_size = if context.large { 24. } else { 16. } * context.scale;
+    let active_text_size = if context.large { 28. } else { 19. } * context.scale;
     let text_size = normal_text_size
         + (active_text_size - normal_text_size) * visual.emphasis.value.clamp(0., 1.03);
+    let mobile_scale = context.mobile_rows.is_some() && context.mode == LyricsMode::Synced;
+    let raster_text_size = if mobile_scale {
+        if emphasis > 0.001 {
+            active_text_size
+        } else {
+            normal_text_size
+        }
+    } else {
+        text_size
+    };
     // Reserve each synced row's geometry, so changing visual size/weight cannot
     // move the scroll target. Both layers share a left edge and line box.
     // Keep the same glyph renderer before, during and after word activation.
     // The unreached mask has a stable base color; only the reveal adds white.
-    let timed_units = timed_text_units(line);
-    let highlighted = if let Some(units) = timed_units {
-        TimedText::new(line.text.clone(), units)
-            .position(context.position)
-            .active_fill(rgb(0xffffff))
-            .inactive_opacity(1.)
-            .progressive_lift(px(if context.large { 3. } else { 1. } * activation))
-            .w_full()
-            .line_height(relative(1.3))
-            .reveal_wave_width(px(8.))
-            .font_weight(FontWeight::BOLD)
-            .text_color(rgba(
-                0xffffff00 | (visual.resting_alpha.value.clamp(0., 1.) * 255.).round() as u32,
-            ))
-            .into_any_element()
-    } else {
-        TextBlur::new(line.text.clone())
-            .radius(px(blur_radius))
-            .w_full()
-            .line_height(relative(1.3))
-            .font_weight(FontWeight::BOLD)
-            .text_color(text_color)
-            .into_any_element()
-    };
-    let primary = if context.mode == LyricsMode::Plain {
-        div()
-            .font_weight(FontWeight::BOLD)
-            .child(line.text.clone())
-            .into_any_element()
-    } else {
-        div()
-            .relative()
-            .w_full()
-            .h(px(active_text_size * 1.3))
-            .child(
-                div()
-                    .absolute()
-                    .left_0()
-                    .top_0()
+    let parts = context
+        .mobile_rows
+        .as_ref()
+        .map_or(std::slice::from_ref(line), |rows| {
+            rows[index].primary.as_slice()
+        });
+    let highlighted = div()
+        .w_full()
+        .flex()
+        .flex_col()
+        .children(parts.iter().map(|part| {
+            let units = if context.mobile_rows.is_some() && !part.words.is_empty() {
+                Some(
+                    part.words
+                        .iter()
+                        .map(|word| {
+                            TimedTextUnit::new(word.range.clone(), word.start, word.end)
+                                .group(word.group)
+                        })
+                        .collect(),
+                )
+            } else {
+                timed_text_units(part)
+            };
+            if let Some(units) = units {
+                TimedText::new(part.text.clone(), units)
+                    .position(context.position)
+                    .active_fill(rgb(0xffffff))
+                    .inactive_opacity(1.)
+                    .progressive_lift(px(if context.large { 3. } else { 1. } * activation))
                     .w_full()
-                    .opacity(1. - emphasis)
-                    .child(
-                        TextBlur::new(line.text.clone())
-                            .radius(px(blur_radius))
-                            .w_full()
-                            .line_height(relative(1.3))
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(text_color),
-                    ),
-            )
-            .when(emphasis > 0.001, |primary| {
-                primary.child(
+                    .line_height(relative(1.3))
+                    .reveal_wave_width(px(8.))
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(rgba(
+                        0xffffff00
+                            | (visual.resting_alpha.value.clamp(0., 1.) * 255.).round() as u32,
+                    ))
+                    .into_any_element()
+            } else {
+                TextBlur::new(part.text.clone())
+                    .radius(px(blur_radius))
+                    .w_full()
+                    .line_height(relative(1.3))
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(text_color)
+                    .into_any_element()
+            }
+        }))
+        .into_any_element();
+    let highlighted = if activation > 0.001 {
+        subtree_bloom(
+            highlighted,
+            BloomOptions {
+                threshold: 0.75,
+                soft_knee: 0.1,
+                intensity: 0.28 * activation,
+                radius: px(if context.large { 7. } else { 5. } * context.scale),
+                downsample: 2,
+            },
+        )
+        .into_any_element()
+    } else {
+        highlighted
+    };
+    let primary =
+        if context.mode == LyricsMode::Plain {
+            div()
+                .font_weight(FontWeight::BOLD)
+                .children(parts.iter().map(|part| div().child(part.text.clone())))
+                .into_any_element()
+        } else {
+            div()
+                .relative()
+                .w_full()
+                .h(px(context
+                    .mobile_rows
+                    .as_ref()
+                    .map_or(active_text_size * 1.3, |rows| {
+                        rows[index].primary_height
+                    })))
+                .child(
                     div()
                         .absolute()
                         .left_0()
                         .top_0()
                         .w_full()
-                        .opacity(emphasis)
-                        .child(highlighted),
+                        .opacity(1. - emphasis)
+                        .child(div().w_full().flex().flex_col().children(parts.iter().map(
+                            |part| {
+                                TextBlur::new(part.text.clone())
+                                    .radius(px(blur_radius))
+                                    .w_full()
+                                    .line_height(relative(1.3))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(text_color)
+                            },
+                        ))),
                 )
-            })
-            .into_any_element()
+                .when(emphasis > 0.001, |primary| {
+                    primary.child(
+                        div()
+                            .absolute()
+                            .left_0()
+                            .top_0()
+                            .w_full()
+                            .opacity(emphasis)
+                            .child(highlighted),
+                    )
+                })
+                .into_any_element()
+        };
+    // Keep the glyph atlas at endpoint sizes. Only the short emphasis transition
+    // needs a paint-time scale, rather than a new font size on every frame.
+    let primary = if mobile_scale && emphasis > 0.001 && emphasis < 0.999 {
+        let scale = text_size / active_text_size;
+        gpui_effects::transform_group(
+            div()
+                .w_full()
+                .text_size(px(active_text_size))
+                .child(primary),
+            gpui::TransformationMatrix::unit().scale(gpui::size(scale, scale)),
+        )
+        .into_any_element()
+    } else {
+        primary
     };
     let text = div().w_full().flex().flex_col().child(primary).when_some(
         line.translation.clone(),
         |text, translation| {
             let translation = if context.mode == LyricsMode::Synced {
-                TextBlur::new(translation)
-                    .radius(px(blur_radius))
-                    .mt(px(if context.large { 5. } else { 3. }))
-                    .text_size(px(if context.large { 13.5 } else { 10.5 }))
-                    .line_height(relative(1.25))
-                    .font_weight(font_weight)
-                    .text_color(translation_color)
+                let translations = context
+                    .mobile_rows
+                    .as_ref()
+                    .map_or(std::slice::from_ref(&translation), |rows| {
+                        rows[index].translations.as_slice()
+                    });
+                div()
+                    .mt(px(if context.large { 5. } else { 3. } * context.scale))
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .children(translations.iter().map(|text| {
+                        TextBlur::new(text.clone())
+                            .radius(px(blur_radius))
+                            .text_size(px(if context.large { 13.5 } else { 10.5 } * context.scale))
+                            .line_height(relative(1.25))
+                            .font_weight(font_weight)
+                            .text_color(translation_color)
+                    }))
                     .into_any_element()
             } else {
                 div()
                     .mt(px(if context.large { 5. } else { 3. }))
-                    .text_size(px(if context.large { 13.5 } else { 10.5 }))
+                    .text_size(px(if context.large { 13.5 } else { 10.5 } * context.scale))
                     .line_height(relative(1.25))
                     .font_weight(font_weight)
                     .text_color(translation_color)
@@ -766,33 +1041,44 @@ fn lyric_row(
         .w_full()
         .min_h(px(if context.large { 64. } else { 44. }))
         .when(context.mode == LyricsMode::Synced, |row| {
-            row.h(px(match (context.large, line.translation.is_some()) {
-                (true, true) => 72.,
-                (true, false) => 64.,
-                (false, true) => 56.,
-                (false, false) => 44.,
-            }))
+            row.h(px(context.mobile_rows.as_ref().map_or_else(
+                || match (context.large, line.translation.is_some()) {
+                    (true, true) => 72.,
+                    (true, false) => 64.,
+                    (false, true) => 56.,
+                    (false, false) => 44.,
+                },
+                |rows| rows[index].height,
+            )))
             .flex_none()
         })
-        .px(px(if context.large { 26. } else { 18. }))
+        .px(px(if context.mobile_rows.is_some() {
+            32. * context.scale
+        } else if context.large {
+            26.
+        } else {
+            18.
+        }))
         .py(px(if context.large { 3. } else { 2. }))
         .flex()
         .items_center()
         .rounded(px(18.))
-        .text_size(px(text_size))
+        .text_size(px(raster_text_size))
         .line_height(relative(1.3))
         .text_color(text_color)
         .font_weight(font_weight)
         .opacity(edge_opacity)
         .child(text)
         .when_some(line.start, |row, start| {
-            let controller = context.controller.clone();
+            let seek = context.seek.clone();
             let interaction = context.interaction.clone();
             row.cursor_pointer()
-                .hover(|row| row.bg(rgba(0xffffff0a)))
+                .when(context.mobile_rows.is_none(), |row| {
+                    row.hover(|row| row.bg(rgba(0xffffff0a)))
+                })
                 .on_click(move |_, _, cx| {
                     interaction.set(None);
-                    controller.update(cx, |playback, cx| playback.seek_to(start, cx));
+                    seek(start, cx);
                 })
         });
 
@@ -803,6 +1089,38 @@ fn lyric_row(
         .flex_none()
         .child(row.top(px(row_offset)))
         .into_any_element()
+}
+
+// Preserve absolute timing and group identity when one timed word spans a wrap.
+fn slice_lyric_line(line: &LyricLine, range: std::ops::Range<usize>) -> LyricLine {
+    let words = line
+        .words
+        .iter()
+        .filter_map(|word| {
+            let start = word.range.start.max(range.start);
+            let end = word.range.end.min(range.end);
+            if start >= end {
+                return None;
+            }
+            let total = line.text[word.range.clone()].chars().count() as f64;
+            let offset = line.text[word.range.start..start].chars().count() as f64 / total;
+            let finish = line.text[word.range.start..end].chars().count() as f64 / total;
+            let duration = word.end.saturating_sub(word.start);
+            Some(crate::domain::lyrics::LyricWord {
+                range: start - range.start..end - range.start,
+                start: word.start + duration.mul_f64(offset),
+                end: word.start + duration.mul_f64(finish),
+                group: word.group,
+            })
+        })
+        .collect::<Vec<_>>();
+    LyricLine {
+        start: line.start,
+        end: line.end,
+        text: line.text[range].to_owned().into(),
+        translation: None,
+        words: words.into(),
+    }
 }
 
 pub(crate) fn timed_text_units(line: &LyricLine) -> Option<Vec<TimedTextUnit>> {
@@ -850,4 +1168,35 @@ fn gray_flow_image() -> Arc<Image> {
             ))
         })
         .clone()
+}
+
+#[cfg(test)]
+mod mobile_tests {
+    use super::*;
+    use crate::domain::lyrics::LyricWord;
+
+    #[test]
+    fn wrapped_word_keeps_utf8_ranges_and_continuous_absolute_timing() {
+        let line = LyricLine {
+            start: Some(Duration::from_secs(8)),
+            end: Some(Duration::from_secs(12)),
+            text: "a你🙂b".into(),
+            translation: None,
+            words: vec![
+                LyricWord::new(0..9, Duration::from_secs(8), Duration::from_secs(12)).group(7),
+            ]
+            .into(),
+        };
+        let first = slice_lyric_line(&line, 0..4);
+        let second = slice_lyric_line(&line, 4..9);
+        assert_eq!(first.text.as_ref(), "a你");
+        assert_eq!(second.text.as_ref(), "🙂b");
+        assert_eq!(first.words[0].range, 0..4);
+        assert_eq!(second.words[0].range, 0..5);
+        assert_eq!(first.words[0].end, Duration::from_secs(10));
+        assert_eq!(second.words[0].start, first.words[0].end);
+        assert_eq!(second.words[0].end, Duration::from_secs(12));
+        assert_eq!(second.words[0].group, 7);
+        assert_eq!(second.start, line.start);
+    }
 }

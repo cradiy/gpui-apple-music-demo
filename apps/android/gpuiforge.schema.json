@@ -1,0 +1,584 @@
+{
+  "$defs": {
+    "AndroidBuildType": {
+      "oneOf": [
+        {
+          "const": "debug",
+          "description": "Android development build, with debugging enabled by the bundled template.",
+          "type": "string"
+        },
+        {
+          "const": "release",
+          "description": "Android release build. Signing is selected independently.",
+          "type": "string"
+        }
+      ]
+    },
+    "AndroidFeature": {
+      "oneOf": [
+        {
+          "const": "network",
+          "description": "HTTPS system certificate verification for Rust HTTP clients. Includes INTERNET and the Cargo-matched rustls-platform-verifier Android component. Also enable the network Cargo feature on gpui_platform (or gpui_android) to initialize the verifier before application main. Requires rustls-platform-verifier 0.7.1 or a compatible 0.7 release; application requests use their HTTP client's normal runtime and API.",
+          "type": "string"
+        },
+        {
+          "const": "files",
+          "description": "Document open/save pickers, persistent document grants, private/public storage and the file provider. Does not require broad storage access permissions for document picker use.",
+          "type": "string"
+        },
+        {
+          "const": "sharing",
+          "description": "Sending and receiving Android shares. Automatically includes files. Set share-mime-types separately to register the application as a share target.",
+          "type": "string"
+        },
+        {
+          "const": "credentials",
+          "description": "Android-backed credential storage used by GPUI's credential API. Enable when storing or retrieving application credentials.",
+          "type": "string"
+        },
+        {
+          "const": "media",
+          "description": "Media playback, frame decoding and picture-in-picture windows, including the Media3 dependency. System playback notifications are selected separately with media-notifications.",
+          "type": "string"
+        },
+        {
+          "const": "notifications",
+          "description": "General system notifications, action buttons and inline replies. Declare POST_NOTIFICATIONS and request runtime authorization when required by Android.",
+          "type": "string"
+        },
+        {
+          "const": "media-notifications",
+          "description": "Android system media session and playback notification controls. Independent of media and notifications, so an application may connect its own player. Does not create a foreground service or keep background work alive.",
+          "type": "string"
+        },
+        {
+          "const": "data-sync",
+          "description": "Session-bound foreground execution for application-owned data transfers. Declare FOREGROUND_SERVICE and FOREGROUND_SERVICE_DATA_SYNC. Does not schedule work, survive session closure or restore tasks after process death.",
+          "type": "string"
+        },
+        {
+          "const": "background-media",
+          "description": "Foreground execution using an existing media notification. Includes media-notifications, but not a player. Declare FOREGROUND_SERVICE and FOREGROUND_SERVICE_MEDIA_PLAYBACK; applications explicitly request and release execution. Does not restore playback after session closure or process death.",
+          "type": "string"
+        }
+      ]
+    },
+    "AndroidPlatform": {
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "application-id"
+          ]
+        },
+        {
+          "required": [
+            "recipe"
+          ]
+        }
+      ],
+      "properties": {
+        "$schema": {
+          "description": "Optional editor schema reference for a platform recipe. Relative references resolve from the JSON file. GPUiForge does not fetch schema URLs.",
+          "type": "string"
+        },
+        "abis": {
+          "description": "Android architectures enabled for packaging. Bundled defaults: arm64-v8a and x86_64. Builds package all enabled ABIs unless --abi selects one; device runs choose a compatible enabled ABI. At least one is required, and 32-bit Android targets are not supported.",
+          "items": {
+            "oneOf": [
+              {
+                "const": "arm64-v8a",
+                "description": "64-bit ARM Android devices. Uses Rust target aarch64-linux-android; commonly used for physical phones and ARM emulators.",
+                "type": "string"
+              },
+              {
+                "const": "x86_64",
+                "description": "64-bit x86 Android devices or emulators. Uses Rust target x86_64-linux-android; select it for an x86_64 emulator.",
+                "type": "string"
+              }
+            ]
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "activity": {
+          "description": "Android Activity class used by launch steps through {{activity}}. Bundled default: dev.gpuiforge.app.MainActivity. Changing this value does not rename generated Kotlin classes or Manifest entries; keep it aligned with a custom or manually maintained host.",
+          "type": "string"
+        },
+        "application-id": {
+          "description": "Android package identity, such as com.example.app. Required directly or through a recipe. Use at least two dot-separated segments starting with ASCII letters; remaining characters may be letters, digits or underscores. This is independent of the Kotlin host namespace and Rust package name.",
+          "examples": [
+            "com.example.app"
+          ],
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$",
+          "type": "string"
+        },
+        "artifact": {
+          "description": "Expected build output path relative to project-dir, with {{variables}} supported. When present, build fails if the file does not exist afterward. Android run exposes its absolute path as {{artifact}}. Bundled default: app/build/outputs/apk/{{profile}}/app-{{profile}}{{apk_suffix}}.apk.",
+          "type": "string"
+        },
+        "build": {
+          "description": "Ordered process steps for gpuiforge build. Android run executes these before its run steps. Each step must succeed before the next starts. Bundled Android defaults assemble the selected debug/release APK; a configured array replaces all default build steps.",
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "type": "array"
+        },
+        "build-type": {
+          "$ref": "#/$defs/AndroidBuildType",
+          "default": "debug",
+          "description": "Default Android build type: debug or release. Defaults to debug, independently of rust-profile. --android-build-type overrides this field; --release selects release unless explicitly overridden. Does not select the signing key."
+        },
+        "cleartext-domains": {
+          "default": [],
+          "description": "Exact hosts allowed to use HTTP while other destinations keep the default Android policy. Accepts ASCII DNS names, IPv4 addresses and bracketed IPv6 addresses, for example cloud.example.com, 192.168.1.10 or [2001:db8::1]. Do not include a scheme, port, path, wildcard or CIDR range. Subdomains must be listed separately; all ports on each host are allowed. Defaults to empty. Cannot be combined with cleartext-traffic: true. The network module's certificate revocation exceptions remain available. Requires the bundled Android template and INTERNET permission.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "cleartext-traffic": {
+          "description": "Allow cleartext HTTP to all destinations through Android networking components. Defaults to no global opt-in. True generates a Network Security Config that also overrides the network verifier's restrictive base policy. False or omission keeps dependency-provided certificate revocation exceptions. Requires the bundled Android template. INTERNET is still required (included by network). Does not weaken HTTPS certificate verification or enforce policy on raw Rust sockets.",
+          "type": "boolean"
+        },
+        "copies": {
+          "description": "Extra file or directory copies into the generated native project. Contents are copied verbatim, including binary assets, without template expansion. Duplicate destinations and symlinks are rejected. Application arrays replace recipe copies; use icon and notification-icon for ordinary Android icons.",
+          "items": {
+            "$ref": "#/$defs/CopySpec"
+          },
+          "type": "array"
+        },
+        "features": {
+          "description": "Optional modules for the bundled Android host. Defaults to an empty list: window rendering, input, IME, lifecycle and accessibility remain available. Disabled modules omit their Kotlin files, Manifest components and dedicated dependencies. Cargo features are configured separately. The network module includes INTERNET; other permissions are declared explicitly. TalkBack uses the semantics published by GPUI controls; no extra host feature is required.",
+          "examples": [
+            [
+              "files",
+              "sharing"
+            ],
+            [
+              "media",
+              "media-notifications"
+            ]
+          ],
+          "items": {
+            "$ref": "#/$defs/AndroidFeature"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "icon": {
+          "description": "Application and launcher icon for the bundled Android host. Accepts PNG, WebP or Android drawable XML. Resolve relative paths from gpuiforge.json. Omit to leave the application icon unspecified; no copy entry is required.",
+          "examples": [
+            "assets/app.png"
+          ],
+          "type": "string"
+        },
+        "inset-handling": {
+          "$ref": "#/$defs/InsetHandling",
+          "default": "application",
+          "description": "Who applies safe-area and keyboard avoidance in the bundled Android Activity. Defaults to application: the GPUI viewport fills the window and Window::insets() reports occlusion in logical pixels without consumed padding. Use host for automatic avoidance; Rust can use insets.effective() in either mode without double padding. This does not hide system bars. Regenerate managed Android sources with gpuiforge sync after changing it."
+        },
+        "management": {
+          "$ref": "#/$defs/Management",
+          "description": "Native project ownership. Defaults to managed. Use gpuiforge platform eject android to export generated sources before taking manual ownership."
+        },
+        "notification-icon": {
+          "description": "Default small icon for general, media and data-sync notifications. Requires notifications, media-notifications or data-sync. Accepts PNG, WebP or Android drawable XML relative to gpuiforge.json; use a monochrome image with transparency. A per-send resource icon takes priority, followed by this icon, the application icon and Android's generic icon.",
+          "examples": [
+            "assets/notification.xml"
+          ],
+          "type": "string"
+        },
+        "paths": {
+          "additionalProperties": {
+            "description": "An existing file or directory relative to the declaring JSON file, or an absolute path. Reference it as {{path.<key>}}.",
+            "type": "string"
+          },
+          "default": {},
+          "description": "Named filesystem paths exposed as {{path.<name>}}. Relative values resolve from the JSON file declaring them and must exist when variables are expanded. Template expansion receives absolute, canonical paths. Use this for shared assets or external template inputs.",
+          "type": "object"
+        },
+        "permissions": {
+          "default": [],
+          "description": "Fully qualified Android permission names written as uses-permission entries in the bundled Manifest, for example android.permission.INTERNET. Defaults to empty; duplicates are removed. Modules do not grant or request runtime permissions automatically. Runtime authorization remains the application's responsibility.",
+          "examples": [
+            [
+              "android.permission.INTERNET",
+              "android.permission.POST_NOTIFICATIONS"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "project-dir": {
+          "description": "Native project directory, always relative to the application's configuration directory, even when declared in a recipe. Defaults to target/gpuiforge/<platform>. Must be nonempty and contain no . or .. components. Managed generation never adopts a nonempty directory without matching ownership metadata.",
+          "type": "string"
+        },
+        "recipe": {
+          "description": "Optional JSON platform recipe, relative to gpuiforge.json. Application fields override recipe fields: objects merge recursively and arrays replace the whole recipe array. Custom recipes replace bundled Android defaults and cannot include another recipe.",
+          "type": "string"
+        },
+        "run": {
+          "description": "Ordered launch steps for gpuiforge run. Android builds first, then runs its configured install and launch steps. Desktop and Web execute only these steps, so they must build or serve the application as needed. Bundled Android defaults use ADB; a configured array replaces all defaults.",
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "type": "array"
+        },
+        "rust-profile": {
+          "default": "dev",
+          "description": "Default Cargo profile, shared by build and run. Defaults to dev. Use release or an application-defined profile for optimized builds. Profile settings come from the application workspace Cargo.toml. --rust-profile overrides this field; --release selects release unless --rust-profile is explicit.",
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "share-mime-types": {
+          "default": [],
+          "description": "MIME types accepted from Android SEND and SEND_MULTIPLE intents, for example text/plain, image/* or */*. Defaults to empty, which does not register a share target. Use lowercase type/subtype syntax. The bundled host requires the sharing feature; the application handles received content itself.",
+          "examples": [
+            [
+              "text/plain",
+              "image/*"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "signing": {
+          "$ref": "#/$defs/Signing",
+          "description": "Optional Android release signing configuration. All four fields are required when present. Passwords come from environment variables only when configured signing is selected. With signing-mode auto, debug uses the development key and release uses these credentials. Without this object, auto release builds remain unsigned; signing-mode debug explicitly enables development signing for release. Store the keystore outside the generated project."
+        },
+        "signing-mode": {
+          "$ref": "#/$defs/SigningMode",
+          "default": "auto",
+          "description": "Android signing policy: auto, debug, configured or unsigned. Auto uses the development key for debug; release uses the signing object when present, otherwise remains unsigned. Debug also signs release builds with Android's development key without requiring password variables. Configured requires signing credentials and never falls back. --signing overrides this field. Unsigned APKs cannot be installed by run."
+        },
+        "template": {
+          "description": "Custom native project template directory. Relative paths resolve from the JSON file declaring this field. Files ending in .tmpl expand {{variables}} and lose that suffix; other files are copied verbatim. Symlinks are rejected. Omit together with recipe to use bundled Android templates.",
+          "type": "string"
+        },
+        "url-schemes": {
+          "default": [],
+          "description": "Lowercase custom URI schemes delivered through Application::on_open_urls, for example myapp. Defaults to empty; duplicates are removed. Bundled templates generate VIEW/DEFAULT/BROWSABLE intent filters. HTTP(S) App Links and file/content URI handlers require a custom Manifest.",
+          "examples": [
+            [
+              "myapp"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "variables": {
+          "additionalProperties": {
+            "description": "Custom string value available as {{var.<key>}}. Additional keys are allowed.",
+            "type": "string"
+          },
+          "default": {},
+          "description": "Custom string values exposed as {{var.<name>}} in templates and process steps. Values are strings, including SDK levels and version codes. Application values override individual recipe keys. Bundled Android templates recognize the documented SDK, version and native_library keys; arbitrary additional keys are allowed.",
+          "properties": {
+            "min_sdk": {
+              "default": "26",
+              "description": "Minimum Android API level for the bundled host and NDK build. Defaults to 26 and must be at least 26. Keep this as a string. Raising it excludes older Android devices.",
+              "type": "string"
+            },
+            "native_library": {
+              "description": "Rust library name loaded by the bundled Android Activity and used by the packaging helper, without lib prefix or .so suffix. Defaults to the application's Cargo package name with hyphens replaced by underscores. Usually leave this unset.",
+              "examples": [
+                "my_app"
+              ],
+              "type": "string"
+            },
+            "target_sdk": {
+              "default": "36",
+              "description": "Target Android API level declared by the bundled application. Defaults to 36. Keep this as a string. This controls Android compatibility behavior; it does not change the template's compileSdk or install SDK packages.",
+              "type": "string"
+            },
+            "version_code": {
+              "default": "1",
+              "description": "Integer Android versionCode expressed as a string. Defaults to 1. Increase it for each application release distributed as an update.",
+              "type": "string"
+            },
+            "version_name": {
+              "default": "0.1.0",
+              "description": "User-visible Android versionName. Defaults to 0.1.0. Independent of the Cargo package version; change it explicitly when releasing.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "CommandPlatform": {
+      "additionalProperties": false,
+      "properties": {
+        "$schema": {
+          "description": "Optional editor schema reference for a platform recipe. Relative references resolve from the JSON file. GPUiForge does not fetch schema URLs.",
+          "type": "string"
+        },
+        "artifact": {
+          "description": "Expected build output path relative to project-dir, with {{variables}} supported. When present, build fails if the file does not exist afterward. Android run exposes its absolute path as {{artifact}}. Bundled default: app/build/outputs/apk/{{profile}}/app-{{profile}}{{apk_suffix}}.apk.",
+          "type": "string"
+        },
+        "build": {
+          "description": "Ordered process steps for gpuiforge build. Android run executes these before its run steps. Each step must succeed before the next starts. Bundled Android defaults assemble the selected debug/release APK; a configured array replaces all default build steps.",
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "type": "array"
+        },
+        "copies": {
+          "description": "Extra file or directory copies into the generated native project. Contents are copied verbatim, including binary assets, without template expansion. Duplicate destinations and symlinks are rejected. Application arrays replace recipe copies; use icon and notification-icon for ordinary Android icons.",
+          "items": {
+            "$ref": "#/$defs/CopySpec"
+          },
+          "type": "array"
+        },
+        "management": {
+          "$ref": "#/$defs/Management",
+          "description": "Native project ownership. Defaults to managed. Use gpuiforge platform eject android to export generated sources before taking manual ownership."
+        },
+        "paths": {
+          "additionalProperties": {
+            "description": "An existing file or directory relative to the declaring JSON file, or an absolute path. Reference it as {{path.<key>}}.",
+            "type": "string"
+          },
+          "default": {},
+          "description": "Named filesystem paths exposed as {{path.<name>}}. Relative values resolve from the JSON file declaring them and must exist when variables are expanded. Template expansion receives absolute, canonical paths. Use this for shared assets or external template inputs.",
+          "type": "object"
+        },
+        "project-dir": {
+          "description": "Native project directory, always relative to the application's configuration directory, even when declared in a recipe. Defaults to target/gpuiforge/<platform>. Must be nonempty and contain no . or .. components. Managed generation never adopts a nonempty directory without matching ownership metadata.",
+          "type": "string"
+        },
+        "recipe": {
+          "description": "Optional JSON platform recipe, relative to gpuiforge.json. Application fields override recipe fields: objects merge recursively and arrays replace the whole recipe array. Custom recipes replace bundled Android defaults and cannot include another recipe.",
+          "type": "string"
+        },
+        "run": {
+          "description": "Ordered launch steps for gpuiforge run. Android builds first, then runs its configured install and launch steps. Desktop and Web execute only these steps, so they must build or serve the application as needed. Bundled Android defaults use ADB; a configured array replaces all defaults.",
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "type": "array"
+        },
+        "rust-profile": {
+          "default": "dev",
+          "description": "Default Cargo profile, shared by build and run. Defaults to dev. Use release or an application-defined profile for optimized builds. Profile settings come from the application workspace Cargo.toml. --rust-profile overrides this field; --release selects release unless --rust-profile is explicit.",
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "template": {
+          "description": "Custom native project template directory. Relative paths resolve from the JSON file declaring this field. Files ending in .tmpl expand {{variables}} and lose that suffix; other files are copied verbatim. Symlinks are rejected. Omit together with recipe to use bundled Android templates.",
+          "type": "string"
+        },
+        "variables": {
+          "additionalProperties": {
+            "description": "Custom string value available as {{var.<key>}}. Additional keys are allowed.",
+            "type": "string"
+          },
+          "default": {},
+          "description": "Custom string values exposed as {{var.<name>}} in templates and process steps. Application values override individual recipe keys.",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "CopySpec": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "description": "Existing source file or directory. Relative paths resolve from the JSON file declaring this copy. Directory contents are copied recursively; symlinks are rejected and content is not template-expanded.",
+          "type": "string"
+        },
+        "to": {
+          "description": "Destination relative to the generated project directory. A file source requires its destination filename; a directory source supplies contents under this directory. Must be nonempty, contain no . or .. components, and not overlap another generated file.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "type": "object"
+    },
+    "InsetHandling": {
+      "oneOf": [
+        {
+          "const": "application",
+          "description": "Draw behind system bars and the keyboard. Rust uses Window::insets() to arrange content.",
+          "type": "string"
+        },
+        {
+          "const": "host",
+          "description": "The Android host avoids system bars, display cutouts and the keyboard before GPUI layout.",
+          "type": "string"
+        }
+      ]
+    },
+    "Management": {
+      "oneOf": [
+        {
+          "const": "managed",
+          "description": "GPUiForge generates native files during sync and before builds. Edited generated files are protected from overwriting.",
+          "type": "string"
+        },
+        {
+          "const": "manual",
+          "description": "The application maintains native files. Build/run execute configured steps without regeneration; sync and generate are disabled. Use platform eject to export a managed project.",
+          "type": "string"
+        }
+      ]
+    },
+    "Signing": {
+      "additionalProperties": false,
+      "properties": {
+        "key-alias": {
+          "description": "Alias of the signing key inside the keystore, not the keystore filename. Must be nonempty and match the alias used when the key was created.",
+          "type": "string"
+        },
+        "key-password-env": {
+          "description": "Name of the environment variable containing the private signing key's password. It may name the same variable as store-password-env when both passwords are identical. Example: ANDROID_KEY_PASSWORD.",
+          "type": "string"
+        },
+        "keystore": {
+          "description": "Existing keystore file, relative to the JSON file declaring this field or an absolute path. Must remain outside project-dir so generated files cannot replace it. GPUiForge does not generate keys or package the keystore in the APK.",
+          "type": "string"
+        },
+        "store-password-env": {
+          "description": "Name of the environment variable containing the keystore password, not the password itself. It must be set to a nonempty value when configured signing is selected. Example: ANDROID_STORE_PASSWORD.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "keystore",
+        "key-alias",
+        "store-password-env",
+        "key-password-env"
+      ],
+      "type": "object"
+    },
+    "SigningMode": {
+      "oneOf": [
+        {
+          "const": "auto",
+          "description": "Debug builds use the development key. Release builds use configured credentials, or remain unsigned when none are configured.",
+          "type": "string"
+        },
+        {
+          "const": "debug",
+          "description": "Use Android's automatically managed debug key, including for release builds. Intended for device testing, not store publication.",
+          "type": "string"
+        },
+        {
+          "const": "configured",
+          "description": "Require the signing object and its password environment variables. Missing credentials fail the build.",
+          "type": "string"
+        },
+        {
+          "const": "unsigned",
+          "description": "Produce an unsigned APK. It cannot be installed by gpuiforge run.",
+          "type": "string"
+        }
+      ]
+    },
+    "Step": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "default": [],
+          "description": "Arguments passed individually to the executable, in order. Defaults to empty. Spaces do not split an argument; shell quoting, pipes, globbing and $VAR expansion are not performed by GPUiForge. Common placeholders: {{cargo_profile}} (resolved Cargo profile), {{profile}} (debug/release), {{variant}} (Debug/Release), {{signing_mode}} (resolved Android signing policy), {{project_dir}} and {{abis}}. Android run steps also receive {{adb}}, {{device}} and {{artifact}}. Custom values use {{var.<name>}} or {{path.<name>}}.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "cwd": {
+          "description": "Working directory for this step. Defaults to the application configuration directory. Relative paths also resolve from that directory, including steps inherited from a recipe. Supports {{variables}}; use {{project_dir}} for Gradle commands in the native project.",
+          "type": "string"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Additional environment variables for this process. Values are strings supporting {{variables}}; unlisted variables are inherited from GPUiForge's environment. Generated release-signing variables take precedence. Reference password variable names in signing instead of storing passwords here.",
+          "type": "object"
+        },
+        "error-pattern": {
+          "description": "Optional case-sensitive literal substring checked in stdout and stderr. A match fails the step even if its exit code is zero. When set, output is captured and printed after the process finishes; otherwise streams are inherited. Use Error: to detect ADB launch errors. This is not a regular expression.",
+          "type": "string"
+        },
+        "program": {
+          "description": "Executable name resolved through PATH, or an explicit executable path. Supports {{variables}}. GPUiForge starts it directly without a shell; use an explicit shell program when shell syntax is required.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "program"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "description": "Schema reference used by your editor for completion, hover help and validation. Relative references resolve from this JSON file. gpuiforge init writes a local schema for offline use; GPUiForge does not fetch schema URLs.",
+      "examples": [
+        "./gpuiforge.schema.json"
+      ],
+      "type": "string"
+    },
+    "app": {
+      "additionalProperties": false,
+      "description": "Application-wide display settings shared by platform templates. Platform identities and build commands belong under platforms.",
+      "properties": {
+        "name": {
+          "description": "Nonempty display name exposed as {{app.name}} and used as the bundled Android application's label. Does not rename the Cargo package, Android application-id or executable.",
+          "examples": [
+            "My App"
+          ],
+          "pattern": "\\S",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "platforms": {
+      "additionalProperties": false,
+      "description": "Configured build/run targets. At least one is required. GPUiForge offers these entries when no platform is specified; omitting an entry removes it from the selection menu.",
+      "minProperties": 1,
+      "properties": {
+        "android": {
+          "$ref": "#/$defs/AndroidPlatform",
+          "description": "Android application packaging and device launch. Uses bundled Kotlin/Gradle templates unless a custom recipe or template is selected. Configure modules, ABI selection, permissions, icons and release signing here."
+        },
+        "desktop": {
+          "$ref": "#/$defs/CommandPlatform",
+          "description": "Commands for the current desktop host (Linux, macOS or Windows). No native project is generated unless a template is configured. Run steps must build the application if necessary, for example cargo run."
+        },
+        "web": {
+          "$ref": "#/$defs/CommandPlatform",
+          "description": "Commands for Web builds and development servers. No bundled Web recipe or server is supplied; configure tools such as your existing WASM build command in build and run."
+        }
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "app",
+    "platforms"
+  ],
+  "title": "GPUiForge application configuration",
+  "type": "object"
+}

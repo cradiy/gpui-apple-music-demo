@@ -1,0 +1,617 @@
+{
+  "document_id": "e11f2b89-fc17-4003-8ee3-ffce191fca08",
+  "page_id": "ad75a09c-4ca3-4ef9-84fb-aa298327f512",
+  "revision": "1",
+  "icons": {
+    "home-active": {
+      "node_id": "525bde63-2264-4aad-a1f7-9db426f79575",
+      "node_name": "home-tab-home-refined",
+      "rect": {
+        "x": 117.98723602294922,
+        "y": 853.6174926757812,
+        "width": 24.025527954101562,
+        "height": 23.0491943359375
+      },
+      "file": "home-active.svg",
+      "source_request_id": "037607a1-9ae5-4b6b-9132-da8d9a59b398",
+      "size": {
+        "width": 24.25,
+        "height": 23.25
+      }
+    },
+    "home": {
+      "node_id": "d0be8baa-781f-438a-80f8-3c34783b839d",
+      "node_name": "library-tab-home-refined",
+      "rect": {
+        "x": 542.3333129882812,
+        "y": 853.8231811523438,
+        "width": 23.33331298828125,
+        "height": 21.67681884765625
+      },
+      "file": "home.svg",
+      "source_request_id": "037607a1-9ae5-4b6b-9132-da8d9a59b398",
+      "size": {
+        "width": 25.5,
+        "height": 24.0
+      }
+    },
+    "library": {
+      "node_id": "83db2c52-c97c-4ddb-a10a-ba4f5f68b033",
+      "node_name": "home-tab-library-refined",
+      "rect": {
+        "x": 315.5,
+        "y": 853.3333129882812,
+        "width": 22.166656494140625,
+        "height": 23.3333740234375
+      },
+      "file": "library.svg",
+      "source_request_id": "037607a1-9ae5-4b6b-9132-da8d9a59b398",
+      "size": {
+        "width": 24.5,
+        "height": 25.5
+      }
+    },
+    "library-active": {
+      "node_id": "c8fdf30e-2626-495f-a6c3-9ef46e23827b",
+      "node_name": "library-tab-library-refined",
+      "rect": {
+        "x": 739.5,
+        "y": 853.3333129882812,
+        "width": 22.1666259765625,
+        "height": 23.3333740234375
+      },
+      "file": "library-active.svg",
+      "source_request_id": "037607a1-9ae5-4b6b-9132-da8d9a59b398",
+      "size": {
+        "width": 24.5,
+        "height": 25.5
+      }
+    },
+    "search": {
+      "node_id": "e6cfe63e-793e-4b50-95ef-eee317a0c935",
+      "node_name": "home-header-action",
+      "rect": {
+        "x": 372.0,
+        "y": 148.0,
+        "width": 17.0,
+        "height": 17.0
+      },
+      "file": "search.svg",
+      "source_request_id": "2e967cfd-bf81-4ddd-9a71-b98b72f2b980",
+      "size": {
+        "width": 19.0,
+        "height": 19.0
+      }
+    },
+    "search-muted": {
+      "node_id": "dbfd6033-49b2-49ad-834b-276631c56dc1",
+      "node_name": "library-search-icon",
+      "rect": {
+        "x": 497.3333435058594,
+        "y": 211.3333282470703,
+        "width": 14.166656494140625,
+        "height": 14.166671752929688
+      },
+      "file": "search-muted.svg",
+      "source_request_id": "548c06c8-67de-46cb-8964-02e5018c916f",
+      "size": {
+        "width": 15.75,
+        "height": 15.75
+      }
+    },
+    "plus": {
+      "node_id": "0e32836b-634d-4cd2-9e85-73be9ceab3d7",
+      "node_name": "library-header-action",
+      "rect": {
+        "x": 797.0,
+        "y": 149.0,
+        "width": 14.0,
+        "height": 14.0
+      },
+      "file": "plus.svg",
+      "source_request_id": "2e967cfd-bf81-4ddd-9a71-b98b72f2b980",
+      "size": {
+        "width": 16.0,
+        "height": 16.0
+      }
+    },
+    "more": {
+      "node_id": "1e756f70-3b80-4d49-8076-696f4a5ac3a4",
+      "node_name": "playing-more",
+      "rect": {
+        "x": 1226.0,
+        "y": 152.0,
+        "width": 16.0,
+        "height": 2.0
+      },
+      "file": "more.svg",
+      "source_request_id": "d60e917c-e960-42ce-8913-cbfeb83a12d9",
+      "size": {
+        "width": 18.0,
+        "height": 4.0
+      }
+    },
+    "down": {
+      "node_id": "496a0e9b-74ce-4961-a38d-cca8bec837e3",
+      "node_name": "playing-back",
+      "rect": {
+        "x": 911.0,
+        "y": 150.0,
+        "width": 14.0,
+        "height": 7.0
+      },
+      "file": "down.svg",
+      "source_request_id": "d60e917c-e960-42ce-8913-cbfeb83a12d9",
+      "size": {
+        "width": 16.0,
+        "height": 9.0
+      }
+    },
+    "heart": {
+      "node_id": "66dd53d4-e847-4a0a-8312-33c02699f9e1",
+      "node_name": "playing-favorite",
+      "rect": {
+        "x": 1214.1605224609375,
+        "y": 607.4757080078125,
+        "width": 21.030426025390625,
+        "height": 18.3992919921875
+      },
+      "file": "heart.svg",
+      "source_request_id": "d60e917c-e960-42ce-8913-cbfeb83a12d9",
+      "size": {
+        "width": 23.0,
+        "height": 20.5
+      }
+    },
+    "heart-filled": {
+      "node_id": "ed57d707-27dd-47d6-b1c6-1991f0eaffa6",
+      "node_name": "favorite-filled",
+      "rect": {
+        "x": 790.1605224609375,
+        "y": 5267.4755859375,
+        "width": 21.030426025390625,
+        "height": 18.3992919921875
+      },
+      "file": "heart-filled.svg",
+      "source_request_id": "a0bd4b55-32b5-4222-bd1c-a5ff6f8e2d30",
+      "size": {
+        "width": 21.25,
+        "height": 18.5
+      }
+    },
+    "shuffle": {
+      "node_id": "9cb9ac56-f3e5-43c5-8032-e69e2e60e80c",
+      "node_name": "playing-shuffle",
+      "rect": {
+        "x": 914.75,
+        "y": 772.8333129882812,
+        "width": 16.5,
+        "height": 18.3333740234375
+      },
+      "file": "shuffle.svg",
+      "source_request_id": "d60e917c-e960-42ce-8913-cbfeb83a12d9",
+      "size": {
+        "width": 18.25,
+        "height": 20.0
+      }
+    },
+    "shuffle-active": {
+      "node_id": "033e6ca4-f92f-40ce-a78a-a67f1c9fc8f1",
+      "node_name": "shuffle-on-icon",
+      "rect": {
+        "x": 914.75,
+        "y": 5432.83349609375,
+        "width": 16.5,
+        "height": 18.33349609375
+      },
+      "file": "shuffle-active.svg",
+      "source_request_id": "7ddc9735-b13f-4185-aaff-e721768510c0",
+      "size": {
+        "width": 18.25,
+        "height": 20.0
+      }
+    },
+    "repeat": {
+      "node_id": "71b1000c-4de1-4ac5-b649-23975f88c13b",
+      "node_name": "playing-repeat",
+      "rect": {
+        "x": 1220.75,
+        "y": 772.8333129882812,
+        "width": 16.5,
+        "height": 18.3333740234375
+      },
+      "file": "repeat.svg",
+      "source_request_id": "d60e917c-e960-42ce-8913-cbfeb83a12d9",
+      "size": {
+        "width": 18.25,
+        "height": 20.0
+      }
+    },
+    "repeat-active": {
+      "node_id": "46e5d5b5-73c9-480c-bb95-029a5f2f7b0d",
+      "node_name": "repeat-on-icon",
+      "rect": {
+        "x": 1644.75,
+        "y": 5432.83349609375,
+        "width": 16.5,
+        "height": 18.33349609375
+      },
+      "file": "repeat-active.svg",
+      "source_request_id": "39995314-d746-40cc-a1d8-3806f61d062d",
+      "size": {
+        "width": 18.25,
+        "height": 20.0
+      }
+    },
+    "previous": {
+      "node_id": "f20c161c-a9da-4433-882f-d7080b729a75",
+      "node_name": "playing-previous",
+      "rect": {
+        "x": 983.6865844726562,
+        "y": 770.7633666992188,
+        "width": 23.71343994140625,
+        "height": 19.47320556640625
+      },
+      "file": "previous.svg",
+      "source_request_id": "d60e917c-e960-42ce-8913-cbfeb83a12d9",
+      "size": {
+        "width": 23.75,
+        "height": 19.5
+      }
+    },
+    "next": {
+      "node_id": "d8c1fb09-0f71-4f1f-b775-d65e39011089",
+      "node_name": "playing-next",
+      "rect": {
+        "x": 1144.5999755859375,
+        "y": 770.7633666992188,
+        "width": 23.7135009765625,
+        "height": 19.47320556640625
+      },
+      "file": "next.svg",
+      "source_request_id": "d60e917c-e960-42ce-8913-cbfeb83a12d9",
+      "size": {
+        "width": 23.75,
+        "height": 19.5
+      }
+    },
+    "pause": {
+      "node_id": "c9316890-c267-4e60-ac6c-07d457c06be3",
+      "node_name": "playing-pause",
+      "rect": {
+        "x": 1068.3333740234375,
+        "y": 771.3333129882812,
+        "width": 15.333251953125,
+        "height": 21.3333740234375
+      },
+      "file": "pause.svg",
+      "source_request_id": "d60e917c-e960-42ce-8913-cbfeb83a12d9",
+      "size": {
+        "width": 15.5,
+        "height": 21.5
+      }
+    },
+    "play": {
+      "node_id": "31079bd0-8e7d-43f1-9a67-5be1140a6bb5",
+      "node_name": "paused-play-icon",
+      "rect": {
+        "x": 223.13333129882812,
+        "y": 5431.12646484375,
+        "width": 15.370254516601562,
+        "height": 19.08013916015625
+      },
+      "file": "play.svg",
+      "source_request_id": "a169cf44-daf8-4b58-8ba1-550aee0975df",
+      "size": {
+        "width": 15.5,
+        "height": 19.25
+      }
+    },
+    "mini-pause": {
+      "node_id": "7ecdfb03-cb32-4678-b03f-101c4d641e97",
+      "node_name": "home-mini-pause",
+      "rect": {
+        "x": 312.25,
+        "y": 799.0,
+        "width": 11.5,
+        "height": 16.0
+      },
+      "file": "mini-pause.svg",
+      "source_request_id": "2e967cfd-bf81-4ddd-9a71-b98b72f2b980",
+      "size": {
+        "width": 11.5,
+        "height": 16.0
+      }
+    },
+    "mini-next": {
+      "node_id": "d6736479-3424-481b-8767-8929ebd94805",
+      "node_name": "home-mini-next",
+      "rect": {
+        "x": 358.3999938964844,
+        "y": 799.5089111328125,
+        "width": 15.8089599609375,
+        "height": 12.982177734375
+      },
+      "file": "mini-next.svg",
+      "source_request_id": "2e967cfd-bf81-4ddd-9a71-b98b72f2b980",
+      "size": {
+        "width": 16.0,
+        "height": 13.0
+      }
+    },
+    "lyrics": {
+      "node_id": "60d8d254-e842-4b9a-84ab-6a6120b80238",
+      "node_name": "playing-lyrics-refined",
+      "rect": {
+        "x": 944.3333129882812,
+        "y": 874.5,
+        "width": 23.33331298828125,
+        "height": 22.16668701171875
+      },
+      "file": "lyrics.svg",
+      "source_request_id": "037607a1-9ae5-4b6b-9132-da8d9a59b398",
+      "size": {
+        "width": 25.5,
+        "height": 24.5
+      }
+    },
+    "lyrics-active": {
+      "node_id": "b47cc8e4-91c1-46c2-808f-4778df5e453f",
+      "node_name": "lyrics-loaded-full-lyrics-refined",
+      "rect": {
+        "x": 96.33333587646484,
+        "y": 9262.5,
+        "width": 23.333328247070312,
+        "height": 22.1669921875
+      },
+      "file": "lyrics-active.svg",
+      "source_request_id": "dbfa9888-5835-4420-aa4e-757f01dcf528",
+      "size": {
+        "width": 25.5,
+        "height": 24.5
+      }
+    },
+    "lyrics-empty": {
+      "node_id": "04104143-43b7-4876-bd72-bdd4c52e0428",
+      "node_name": "lyrics-empty-unified",
+      "rect": {
+        "x": 636.1666870117188,
+        "y": 3186.75,
+        "width": 31.66668701171875,
+        "height": 30.083251953125
+      },
+      "file": "lyrics-empty.svg",
+      "source_request_id": "f2ce85c1-11c2-47ba-9ff3-5ca5d445c237",
+      "size": {
+        "width": 34.75,
+        "height": 33.0
+      }
+    },
+    "device": {
+      "node_id": "bf78ef77-ed9e-43cc-8b98-36328fddaf7e",
+      "node_name": "playing-device-refined",
+      "rect": {
+        "x": 1064.3333740234375,
+        "y": 873.3333129882812,
+        "width": 23.3333740234375,
+        "height": 22.16668701171875
+      },
+      "file": "device.svg",
+      "source_request_id": "037607a1-9ae5-4b6b-9132-da8d9a59b398",
+      "size": {
+        "width": 25.5,
+        "height": 24.5
+      }
+    },
+    "queue": {
+      "node_id": "ccc0ade6-ebba-4898-b37b-5de6033b1d84",
+      "node_name": "playing-queue-refined",
+      "rect": {
+        "x": 1184.3333740234375,
+        "y": 875.6666870117188,
+        "width": 24.5,
+        "height": 20.76666259765625
+      },
+      "file": "queue.svg",
+      "source_request_id": "037607a1-9ae5-4b6b-9132-da8d9a59b398",
+      "size": {
+        "width": 26.75,
+        "height": 22.0
+      }
+    },
+    "play-accent": {
+      "node_id": "152aad60-0d36-402d-b3a5-e9b9dfdfdba3",
+      "node_name": "library-play-all-icon",
+      "rect": {
+        "x": 526.2625122070312,
+        "y": 336.88372802734375,
+        "width": 8.645767211914062,
+        "height": 10.7325439453125
+      },
+      "file": "play-accent.svg",
+      "source_request_id": "548c06c8-67de-46cb-8964-02e5018c916f",
+      "size": {
+        "width": 8.75,
+        "height": 10.75
+      }
+    },
+    "shuffle-accent": {
+      "node_id": "e86f35f8-4d57-4cb1-8ccf-b083997cf9d3",
+      "node_name": "library-shuffle-icon",
+      "rect": {
+        "x": 696.125,
+        "y": 336.4166564941406,
+        "width": 12.75,
+        "height": 14.16668701171875
+      },
+      "file": "shuffle-accent.svg",
+      "source_request_id": "548c06c8-67de-46cb-8964-02e5018c916f",
+      "size": {
+        "width": 14.25,
+        "height": 15.5
+      }
+    },
+    "menu-heart": {
+      "node_id": "e1d7ea30-1a5d-4e29-86f9-3813861babda",
+      "node_name": "song-menu-action-0-icon",
+      "rect": {
+        "x": 61.0,
+        "y": 2092.0,
+        "width": 18.50676727294922,
+        "height": 16.19140625
+      },
+      "file": "menu-heart.svg",
+      "source_request_id": "593ccb8e-bf10-4dd5-8167-3ef8430cfe63",
+      "size": {
+        "width": 20.25,
+        "height": 18.0
+      }
+    },
+    "play-next": {
+      "node_id": "b319b907-4d3e-4f2e-ae68-a7720ad68442",
+      "node_name": "song-menu-symbol-1",
+      "rect": {
+        "x": 62.0,
+        "y": 2146.0,
+        "width": 18.0,
+        "height": 19.0
+      },
+      "file": "play-next.svg",
+      "source_request_id": "0616417b-504a-4c19-acb8-fe49d1e084e9",
+      "size": {
+        "width": 19.0,
+        "height": 20.0
+      }
+    },
+    "add-queue": {
+      "node_id": "309f5043-9039-4ddd-a380-076d9902e938",
+      "node_name": "song-menu-symbol-2",
+      "rect": {
+        "x": 62.0,
+        "y": 2199.0,
+        "width": 18.0,
+        "height": 17.0
+      },
+      "file": "add-queue.svg",
+      "source_request_id": "0616417b-504a-4c19-acb8-fe49d1e084e9",
+      "size": {
+        "width": 20.0,
+        "height": 19.0
+      }
+    },
+    "add-playlist": {
+      "node_id": "255f1dd9-2d16-4557-93a1-2fa2d1d837b0",
+      "node_name": "song-menu-symbol-3",
+      "rect": {
+        "x": 62.0,
+        "y": 2249.0,
+        "width": 18.0,
+        "height": 19.0
+      },
+      "file": "add-playlist.svg",
+      "source_request_id": "0616417b-504a-4c19-acb8-fe49d1e084e9",
+      "size": {
+        "width": 20.0,
+        "height": 21.0
+      }
+    },
+    "info": {
+      "node_id": "ec8971f7-d151-459e-9e98-336b62e408dd",
+      "node_name": "song-menu-symbol-4",
+      "rect": {
+        "x": 61.0,
+        "y": 2301.0,
+        "width": 18.0,
+        "height": 18.0
+      },
+      "file": "info.svg",
+      "source_request_id": "0616417b-504a-4c19-acb8-fe49d1e084e9",
+      "size": {
+        "width": 20.0,
+        "height": 20.0
+      }
+    },
+    "trash": {
+      "node_id": "b89732a9-a695-4c46-ae29-7133d46b09c5",
+      "node_name": "song-menu-symbol-5",
+      "rect": {
+        "x": 61.0,
+        "y": 2383.0,
+        "width": 18.0,
+        "height": 18.0
+      },
+      "file": "trash.svg",
+      "source_request_id": "0616417b-504a-4c19-acb8-fe49d1e084e9",
+      "size": {
+        "width": 20.0,
+        "height": 20.0
+      }
+    },
+    "folder": {
+      "node_id": "5b4c5e24-6931-4e6d-a57c-18ae76ff507d",
+      "node_name": "import-folder-aligned",
+      "rect": {
+        "x": 482.0,
+        "y": 2128.0,
+        "width": 20.0,
+        "height": 18.0
+      },
+      "file": "folder.svg",
+      "source_request_id": "0b1d2ce0-1fd7-40ef-a064-f16ea64c8b4e",
+      "size": {
+        "width": 22.0,
+        "height": 20.0
+      }
+    },
+    "import-files": {
+      "node_id": "14dc9ddf-aebc-49f0-90dc-d6a4b7189010",
+      "node_name": "import-files-icon",
+      "rect": {
+        "x": 483.0,
+        "y": 2066.0,
+        "width": 17.999969482421875,
+        "height": 18.0
+      },
+      "file": "import-files.svg",
+      "source_request_id": "2ebbeb89-cd6a-4e37-9079-d22ad1edbc66",
+      "size": {
+        "width": 19.75,
+        "height": 19.75
+      }
+    },
+    "back": {
+      "node_id": "26aa082f-4b15-4b18-b92d-18643ef4e3c5",
+      "node_name": "search-backicon",
+      "rect": {
+        "x": 1331.0,
+        "y": 148.0,
+        "width": 8.0,
+        "height": 16.0
+      },
+      "file": "back.svg",
+      "source_request_id": "dc183abf-9ca9-49b7-8280-26efef9be7ae",
+      "size": {
+        "width": 10.0,
+        "height": 18.0
+      }
+    },
+    "mini-play": {
+      "node_id": "26b55faf-446c-4e7c-ba35-3b6dea289103",
+      "node_name": "home-resume-icon",
+      "rect": {
+        "x": 1162.3499755859375,
+        "y": 9186.8447265625,
+        "width": 11.527679443359375,
+        "height": 14.31005859375
+      },
+      "file": "mini-play.svg",
+      "source_request_id": "7b735adf-c5bc-4d32-a17b-24a622397aaa",
+      "size": {
+        "width": 11.75,
+        "height": 14.5
+      }
+    }
+  },
+  "format": "svg",
+  "source": "Original SVG imports matched by node UUID; current design geometry and stroke widths."
+}

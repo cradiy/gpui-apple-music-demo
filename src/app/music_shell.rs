@@ -55,7 +55,56 @@ impl PlaybackPanel {
 pub struct EffectsViewer {
     pub track_id: Option<String>,
     pub album_cover: Arc<Image>,
-    pub started_at: Instant,
+    pub(crate) clock: BackgroundClock,
+}
+
+#[derive(Default)]
+pub(crate) struct BackgroundClock {
+    elapsed: f32,
+    sampled_at: Option<Instant>,
+}
+
+impl BackgroundClock {
+    pub(crate) fn sample(&mut self, now: Instant, running: bool) -> f32 {
+        if running {
+            if let Some(previous) = self.sampled_at.replace(now) {
+                self.elapsed += now.saturating_duration_since(previous).as_secs_f32();
+            }
+        } else {
+            self.sampled_at = None;
+        }
+        self.elapsed
+    }
+}
+
+#[cfg(test)]
+mod background_clock_tests {
+    use super::BackgroundClock;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn paused_redraws_and_resume_exclude_the_pause_interval() {
+        let start = Instant::now();
+        let mut clock = BackgroundClock::default();
+        clock.sample(start, true);
+        let before_pause = clock.sample(start + Duration::from_secs(2), true);
+        assert_eq!(
+            clock.sample(start + Duration::from_secs(3), false),
+            before_pause
+        );
+        assert_eq!(
+            clock.sample(start + Duration::from_secs(90), false),
+            before_pause
+        );
+        assert_eq!(
+            clock.sample(start + Duration::from_secs(100), true),
+            before_pause
+        );
+        assert_eq!(
+            clock.sample(start + Duration::from_secs(102), true),
+            before_pause + 2.
+        );
+    }
 }
 
 pub struct MusicShell {
@@ -415,8 +464,10 @@ impl Render for MusicShell {
         let width = window.bounds().size.width;
         let height = window.bounds().size.height;
         if self.now_playing {
-            window.request_animation_frame();
             return now_playing::render(self, window, width.as_f32(), height.as_f32(), cx);
+        }
+        if let Some(effect) = self.effects_viewer.as_mut() {
+            effect.clock.sample(Instant::now(), false);
         }
         let wide_enough = width >= px(layout::HIDE_LYRICS_BELOW);
         let show_queue = self.playback_panel == PlaybackPanel::Queue && wide_enough;

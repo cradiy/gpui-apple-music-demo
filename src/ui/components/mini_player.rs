@@ -93,7 +93,7 @@ impl Render for MiniPlayer {
         let lyrics = &snapshot.track.lyrics;
         let document_id = Arc::as_ptr(&lyrics.lines) as *const LyricLine as usize;
         let position = self.lyrics_clock.position(document_id, &snapshot);
-        if playing || lyrics.mode == LyricsMode::Synced {
+        if playing && window.is_window_active() {
             window.request_animation_frame();
         }
 
@@ -107,16 +107,18 @@ impl Render for MiniPlayer {
                 self.effects_viewer = Some(EffectsViewer {
                     track_id,
                     album_cover: artwork.clone(),
-                    started_at: Instant::now(),
+                    clock: Default::default(),
                 });
             }
             let effect = self
                 .effects_viewer
-                .as_ref()
+                .as_mut()
                 .expect("effects viewer initialized");
             (
                 effect.album_cover.clone(),
-                effect.started_at.elapsed().as_secs_f32(),
+                effect
+                    .clock
+                    .sample(Instant::now(), playing && window.is_window_active()),
             )
         };
 
