@@ -56,10 +56,7 @@ impl PageMotion {
     }
 
     pub fn progress(&self) -> (f32, bool) {
-        let duration = if matches!(
-            (self.from, self.to),
-            (Page::Home, Page::Library) | (Page::Library, Page::Home)
-        ) {
+        let duration = if self.from.is_tab() && self.to.is_tab() {
             0.18
         } else {
             0.32

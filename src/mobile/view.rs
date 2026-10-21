@@ -1,5 +1,7 @@
 use super::*;
+use gpui_effects::{LiquidGlass, LiquidGlassAppearance};
 use uic::components::{
+    glass::{GlassSegmentedAppearance, GlassSegmentedControl},
     input::Input,
     reorderable_list::{ReorderEvent, ReorderableList},
     slider::{Slider, SliderAppearance, SliderThumbVisibility},
@@ -64,12 +66,35 @@ impl Layout {
             .child(icons::icon(icon, self.s))
     }
 }
-fn cover(track: Option<&Track>, size: f32) -> Div {
-    artwork_cover(track.and_then(|t| t.artwork.clone()).map(Into::into), size)
+fn chrome_glass(scale: f32) -> LiquidGlassAppearance {
+    let mut surface = GlassSegmentedAppearance::dark()
+        .surface
+        .tint(hsla(0., 0., 0., 0.))
+        .blur_radius(px(0.))
+        .clarity(1.)
+        .brightness(1.5)
+        .compress_highlights(true)
+        .refraction(px(7.))
+        .full_refraction(true);
+    surface.blur_radius *= scale;
+    surface.refraction *= scale;
+    surface.thickness *= scale;
+    surface.rim_width *= scale;
+    surface.edge_tint_width *= scale;
+    surface.edge_sample_distance *= scale;
+    surface
 }
 
-fn artwork_cover(source: Option<ImageSource>, size: f32) -> Div {
-    let radius = px(size * 0.06);
+fn cover(track: Option<&Track>, size: f32) -> Div {
+    artwork_cover(
+        track.and_then(|t| t.artwork.clone()).map(Into::into),
+        size,
+        size * 0.06,
+    )
+}
+
+fn artwork_cover(source: Option<ImageSource>, size: f32, radius: f32) -> Div {
+    let radius = px(radius);
     div()
         .size(px(size))
         .rounded(radius)
@@ -286,8 +311,8 @@ impl MobileApp {
         })
     }
 
-    fn playing_cover(&self, size: f32) -> Div {
-        artwork_cover(self.visible_artwork.clone(), size)
+    fn playing_cover(&self, size: f32, radius: f32) -> Div {
+        artwork_cover(self.visible_artwork.clone(), size, radius)
     }
 
     fn now_playing(&mut self, l: Layout, window: &mut Window, cx: &mut Context<Self>) -> Div {
@@ -389,12 +414,15 @@ impl MobileApp {
         d = d
             .child(
                 l.rect(
-                    morph(32., 8.),
-                    morph(lerp(art_y, l.top(110.)), 8.),
-                    morph(lerp(328., 52.), 42.),
-                    morph(lerp(328., 52.), 42.),
+                    morph(32., 16.),
+                    morph(lerp(art_y, l.top(110.)), 11.),
+                    morph(lerp(328., 52.), 36.),
+                    morph(lerp(328., 52.), 36.),
                 )
-                .child(self.playing_cover(morph(lerp(328., 52.), 42.) * l.s)),
+                .child(self.playing_cover(
+                    morph(lerp(328., 52.), 36.) * l.s,
+                    morph(lerp(328., 52.) * 0.06, 6.) * l.s,
+                )),
             )
             .child(
                 l.text(
@@ -490,87 +518,118 @@ impl MobileApp {
             return div();
         };
         let y = l.bottom(if nav { 690. } else { 760. });
-        l.rect(16., y, 360., 58.)
-            .rounded(px(14. * l.s))
-            .bg(rgb(SURFACE))
-            .child(
-                l.rect(8., 8., 42., 42.)
-                    .child(cover(Some(track), 42. * l.s)),
-            )
-            .child(
-                l.text(62., 6., 180., 14., TEXT, track.title.clone())
-                    .truncate()
-                    .font_weight(FontWeight::SEMIBOLD),
-            )
-            .child(
-                l.text(62., 29., 180., 10., SECONDARY, track.artist.clone())
-                    .truncate(),
-            )
-            .child(
-                l.rect(0., 0., 246., 58.)
-                    .id("open-player")
-                    .on_click(cx.listener(|this, _, w, cx| {
-                        this.show_lyrics = false;
-                        this.navigate(Page::NowPlaying, w, cx);
-                    })),
-            )
-            .child(
-                l.button(
-                    "mini-toggle",
-                    246.,
-                    5.,
-                    44.,
-                    48.,
-                    if self.playing(cx) {
-                        "mini-pause"
-                    } else {
-                        "mini-play"
-                    },
+        l.rect(16., y, 360., 58.).child(
+            LiquidGlass::with_appearance(chrome_glass(l.s))
+                .size_full()
+                .rounded_full()
+                .occlude()
+                .child(l.rect(16., 11., 36., 36.).child(artwork_cover(
+                    track.artwork.clone().map(Into::into),
+                    36. * l.s,
+                    6. * l.s,
+                )))
+                .child(
+                    l.text(62., 6., 180., 14., TEXT, track.title.clone())
+                        .truncate()
+                        .font_weight(FontWeight::SEMIBOLD),
                 )
-                .on_click(cx.listener(|this, _, _, cx| this.toggle(cx))),
-            )
-            .child(
-                l.button("mini-next", 294., 5., 44., 48., "mini-next")
-                    .on_click(cx.listener(|this, _, _, cx| this.skip(1, cx))),
-            )
+                .child(
+                    l.text(62., 29., 180., 10., SECONDARY, track.artist.clone())
+                        .truncate(),
+                )
+                .child(
+                    l.rect(0., 0., 246., 58.)
+                        .id("open-player")
+                        .on_click(cx.listener(|this, _, w, cx| {
+                            this.show_lyrics = false;
+                            this.navigate(Page::NowPlaying, w, cx);
+                        })),
+                )
+                .child(
+                    l.button(
+                        "mini-toggle",
+                        246.,
+                        5.,
+                        44.,
+                        48.,
+                        if self.playing(cx) {
+                            "mini-pause"
+                        } else {
+                            "mini-play"
+                        },
+                    )
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle(cx))),
+                )
+                .child(
+                    l.button("mini-next", 294., 5., 44., 48., "mini-next")
+                        .on_click(cx.listener(|this, _, _, cx| this.skip(1, cx))),
+                ),
+        )
     }
     fn nav(&self, page: Page, l: Layout, cx: &mut Context<Self>) -> Div {
-        l.rect(0., l.bottom(754.), 392., 76.)
-            .bg(rgb(0x191d27))
-            .children(
-                [
-                    (Page::Home, "Home", "home", "home-active"),
-                    (Page::Library, "Library", "library", "library-active"),
-                ]
-                .into_iter()
-                .enumerate()
-                .map(|(i, (destination, label, normal, active))| {
-                    let selected = page == destination;
-                    l.rect(i as f32 * 196., 0., 196., 76.)
-                        .id(label)
-                        .on_click(
-                            cx.listener(move |this, _, w, cx| this.navigate(destination, w, cx)),
-                        )
-                        .child(
-                            l.rect(0., 9., 196., 32.)
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(icons::icon(if selected { active } else { normal }, l.s)),
-                        )
-                        .child(
-                            l.text(
-                                0.,
-                                42.,
-                                196.,
-                                11.,
-                                if selected { ACCENT } else { SECONDARY },
-                                label,
-                            )
-                            .text_center(),
-                        )
-                }),
-            )
+        let mut appearance = GlassSegmentedAppearance::dark();
+        appearance.surface = chrome_glass(l.s);
+        let selection = &mut appearance.selection;
+        selection.tint.a = 0.12;
+        selection.blur_radius *= l.s;
+        selection.refraction *= l.s;
+        selection.thickness *= l.s;
+        selection.edge_refraction *= l.s;
+        selection.edge_width *= l.s;
+        selection.rim_width *= l.s;
+        appearance.selected_text = rgb(ACCENT).into();
+        let entity = cx.entity();
+        let mut control = GlassSegmentedControl::new("mobile-navigation", page)
+            .label("Main navigation")
+            .appearance(appearance)
+            .selection_press_scale(1.35)
+            .selection_horizontal_outset(px(4. * l.s))
+            .surface_press_scale(1.05)
+            .size_full()
+            .p(px(4. * l.s))
+            .gap_0()
+            .justify_between()
+            .border_0()
+            .rounded_full()
+            .text_color(rgb(0xf5f5f7))
+            .on_change(move |destination, window, cx| {
+                entity.update(cx, |this, cx| this.navigate(destination, window, cx));
+            });
+        for (destination, label, icon) in [
+            (Page::Home, "Home", "nav-home"),
+            (Page::Discover, "Discover", "nav-discover"),
+            (Page::Radio, "Radio", "nav-radio"),
+            (Page::Library, "Library", "nav-library"),
+            (Page::Search, "Search", "nav-search"),
+        ] {
+            control = control.option(
+                destination,
+                div()
+                    .w(px(344. * l.s / 5. - 36.))
+                    .h(px(36. * l.s))
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(l.s))
+                    .child(
+                        svg()
+                            .path(format!("icons/android/{icon}.svg"))
+                            .size(px(25. * l.s))
+                            .text_color(rgb(0xf5f5f7))
+                            .flex_none(),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(10. * l.s))
+                            .line_height(px(10. * l.s))
+                            .whitespace_nowrap()
+                            .font_weight(FontWeight::MEDIUM)
+                            .child(label),
+                    ),
+            );
+        }
+        l.rect(20., l.bottom(758.), 352., 60.).child(control)
     }
     fn row(&self, track: &Track, index: usize, l: Layout, cx: &mut Context<Self>) -> Div {
         let id = track.id.clone();
@@ -646,11 +705,17 @@ impl MobileApp {
         let collection = page == Page::Collection;
         let searching_with_keyboard =
             matches!(page, Page::Search | Page::Library) && window.insets().ime.bottom > px(0.);
-        let list_bottom = if searching_with_keyboard {
-            l.h / l.s - 12.
-        } else {
-            l.bottom(if search { 744. } else { 680. })
-        };
+        let list_bottom = l.h / l.s;
+        let bottom_padding = px(l.s
+            * if searching_with_keyboard {
+                12.
+            } else if collection {
+                80.
+            } else if self.track().is_some() {
+                150.
+            } else {
+                82.
+            });
         let mut d = div().relative().size_full().child(self.header(
             l,
             if home {
@@ -662,7 +727,7 @@ impl MobileApp {
             } else {
                 "Library"
             },
-            search || collection,
+            collection,
             cx,
         ));
         if home {
@@ -716,20 +781,16 @@ impl MobileApp {
                 .filter_map(|id| tracks.iter().find(|t| &t.id == id))
                 .collect::<Vec<_>>();
             d = d.child(
-                l.rect(
-                    24.,
-                    l.top(464.),
-                    344.,
-                    (l.bottom(680.) - l.top(464.)).max(0.),
-                )
-                .id("recent")
-                .overflow_y_scroll()
-                .children(
-                    recent
-                        .iter()
-                        .enumerate()
-                        .map(|(i, t)| self.row(t, i, l, cx)),
-                ),
+                l.rect(24., l.top(464.), 344., (list_bottom - l.top(464.)).max(0.))
+                    .id("recent")
+                    .overflow_y_scroll()
+                    .pb(bottom_padding)
+                    .children(
+                        recent
+                            .iter()
+                            .enumerate()
+                            .map(|(i, t)| self.row(t, i, l, cx)),
+                    ),
             );
             if tracks.is_empty() {
                 d = d.child(
@@ -765,20 +826,16 @@ impl MobileApp {
                 )
                 .child(self.play_buttons(l, l.top(368.), cx))
                 .child(
-                    l.rect(
-                        24.,
-                        l.top(446.),
-                        344.,
-                        (l.bottom(744.) - l.top(446.)).max(0.),
-                    )
-                    .id("collection-list")
-                    .overflow_y_scroll()
-                    .children(
-                        selected
-                            .into_iter()
-                            .enumerate()
-                            .map(|(i, t)| self.row(t, i, l, cx)),
-                    ),
+                    l.rect(24., l.top(446.), 344., (list_bottom - l.top(446.)).max(0.))
+                        .id("collection-list")
+                        .overflow_y_scroll()
+                        .pb(bottom_padding)
+                        .children(
+                            selected
+                                .into_iter()
+                                .enumerate()
+                                .map(|(i, t)| self.row(t, i, l, cx)),
+                        ),
                 );
         } else {
             if !search {
@@ -829,6 +886,7 @@ impl MobileApp {
                         l.rect(24., l.top(234.), 344., (list_bottom - l.top(234.)).max(0.))
                             .id("results")
                             .overflow_y_scroll()
+                            .pb(bottom_padding)
                             .children(
                                 filtered
                                     .into_iter()
@@ -867,6 +925,7 @@ impl MobileApp {
                             l.rect(24., l.top(300.), 344., (list_bottom - l.top(300.)).max(0.))
                                 .id("songs")
                                 .overflow_y_scroll()
+                                .pb(bottom_padding)
                                 .children(
                                     filtered
                                         .into_iter()
@@ -884,6 +943,7 @@ impl MobileApp {
                             l.rect(24., l.top(234.), 344., (list_bottom - l.top(234.)).max(0.))
                                 .id("albums")
                                 .overflow_y_scroll()
+                                .pb(bottom_padding)
                                 .child(div().flex().flex_wrap().gap(px(16. * l.s)).children(
                                     albums.enumerate().map(|(i, t)| {
                                         let id = t.id.clone();
@@ -937,10 +997,7 @@ impl MobileApp {
             }
         }
         if !searching_with_keyboard {
-            d = d.child(self.mini(l, !search && !collection, cx));
-            if !search && !collection {
-                d = d.child(self.nav(page, l, cx));
-            }
+            d = d.child(self.mini(l, !collection, cx));
         }
         d
     }
@@ -1629,6 +1686,9 @@ impl MobileApp {
             None
         };
         let content = match page {
+            Page::Discover | Page::Radio => {
+                div().relative().size_full().child(self.mini(l, true, cx))
+            }
             Page::NowPlaying => self.now_playing(l, window, cx),
             Page::EditLyrics => self.editor(l, cx),
             Page::SongInfo => {
@@ -1742,9 +1802,7 @@ impl Render for MobileApp {
                     }
                 }));
         }
-        window.set_back_enabled(
-            modal::is_open(cx) || !matches!(self.page, Page::Home | Page::Library),
-        );
+        window.set_back_enabled(modal::is_open(cx) || !self.page.is_tab());
         if self.page != Page::NowPlaying {
             self.backdrop_sampled_at = None;
             self.backdrop_frame = None;
@@ -1763,7 +1821,7 @@ impl Render for MobileApp {
             self.player_dismiss = motion::PlayerDismiss::default();
             self.page = self.return_page;
             self.show_lyrics = false;
-            window.set_back_enabled(!matches!(self.page, Page::Home | Page::Library));
+            window.set_back_enabled(!self.page.is_tab());
         }
         if player_moving {
             window.request_animation_frame();
@@ -1782,7 +1840,7 @@ impl Render for MobileApp {
             let below = self.page_scene(self.return_page, l, window, cx);
             let player = self.page_scene(Page::NowPlaying, l, window, cx);
             let progress = (player_offset / size.height.as_f32()).clamp(0., 1.);
-            let nav = !matches!(self.return_page, Page::Search | Page::Collection);
+            let nav = self.return_page != Page::Collection;
             let target_y = insets.top + px(l.bottom(if nav { 690. } else { 760. }) * l.s);
             pages = pages
                 .child(
@@ -1832,15 +1890,12 @@ impl Render for MobileApp {
                 pages = pages
                     .child(layer(("page", to as usize), incoming))
                     .child(layer(("page", from as usize), outgoing).top(size.height * t));
-            } else if matches!(
-                (from, to),
-                (Page::Home, Page::Library) | (Page::Library, Page::Home)
-            ) {
+            } else if from.is_tab() && to.is_tab() {
                 pages = pages
                     .child(layer(("page", from as usize), outgoing))
                     .child(layer(("page", to as usize), incoming).opacity(t));
             } else {
-                let back = matches!(to, Page::Home | Page::Library);
+                let back = to.is_tab();
                 if back {
                     pages = pages
                         .child(
@@ -1914,6 +1969,27 @@ impl Render for MobileApp {
                 )
             })
             .child(pages)
+            .when(
+                self.page.is_tab() && window.insets().ime.bottom == px(0.),
+                |root| {
+                    root.child(
+                        div()
+                            .id("mobile-navigation-layer")
+                            .absolute()
+                            .inset_0()
+                            .pt(insets.top)
+                            .pb(insets.bottom)
+                            .pl(insets.left)
+                            .pr(insets.right)
+                            .child(
+                                div()
+                                    .relative()
+                                    .size_full()
+                                    .child(self.nav(self.page, l, cx)),
+                            ),
+                    )
+                },
+            )
             .when_some(self.error.clone(), |root, error| {
                 root.child(
                     l.rect(24., l.bottom(540.), 344., 48.)

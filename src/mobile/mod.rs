@@ -35,6 +35,8 @@ use uic::components::{
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
     Home,
+    Discover,
+    Radio,
     Library,
     NowPlaying,
     Search,
@@ -42,6 +44,15 @@ enum Page {
     EditLyrics,
     SongInfo,
 }
+impl Page {
+    fn is_tab(self) -> bool {
+        matches!(
+            self,
+            Self::Home | Self::Discover | Self::Radio | Self::Library | Self::Search
+        )
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LibraryTab {
     Songs,
@@ -240,7 +251,7 @@ impl MobileApp {
         }
         self.page_motion = Some(motion::PageMotion::new(self.page, page));
         self.page = page;
-        window.set_back_enabled(!matches!(page, Page::Home | Page::Library));
+        window.set_back_enabled(!page.is_tab());
         cx.notify();
     }
 
@@ -252,7 +263,7 @@ impl MobileApp {
                 return;
             }
             modal::dismiss(window, cx);
-            window.set_back_enabled(!matches!(self.page, Page::Home | Page::Library));
+            window.set_back_enabled(!self.page.is_tab());
             cx.notify();
         } else if self.page == Page::NowPlaying && self.show_lyrics {
             self.show_lyrics = false;
