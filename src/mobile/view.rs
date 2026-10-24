@@ -1,9 +1,11 @@
+mod player;
+
 use super::*;
 use gpui_effects::{LiquidGlass, LiquidGlassAppearance};
 use uic::components::{
     glass::{GlassSegmentedAppearance, GlassSegmentedControl},
     input::Input,
-    reorderable_list::{ReorderEvent, ReorderableList},
+    reorderable_list::{ReorderEvent, ReorderHandle, ReorderableList},
     slider::{Slider, SliderAppearance, SliderThumbVisibility},
     swipe_actions::{SwipeActions, SwipeDirection},
 };
@@ -114,402 +116,6 @@ fn time(d: Duration) -> String {
 }
 
 impl MobileApp {
-    fn controls(&self, l: Layout, cx: &mut Context<Self>) -> Div {
-        let position = self
-            .player
-            .as_ref()
-            .map_or(Duration::ZERO, |p| p.read(cx).position());
-        let duration = self
-            .player
-            .as_ref()
-            .and_then(|p| p.read(cx).duration())
-            .unwrap_or_default();
-        let mut d = div()
-            .size_full()
-            .child(
-                l.rect(32., l.bottom(590.), 328., 36.).child(
-                    Slider::new(&self.timeline_slider)
-                        .label("Playback position")
-                        .appearance(
-                            SliderAppearance::default()
-                                .active_track(rgb(TEXT).into())
-                                .thumb(rgb(TEXT).into())
-                                .thumb_border(rgb(TEXT).into())
-                                .focus_ring(rgba(0xffffff00).into())
-                                .thumb_size(px(10. * l.s))
-                                .bg(rgba(0xffffff26))
-                                .h(px(4. * l.s))
-                                .rounded_full(),
-                        )
-                        .thumb_visibility(SliderThumbVisibility::Always)
-                        .size_full(),
-                ),
-            )
-            .child(l.text(32., l.bottom(618.), 100., 11., SECONDARY, time(position)))
-            .child(
-                l.text(
-                    260.,
-                    l.bottom(618.),
-                    100.,
-                    11.,
-                    SECONDARY,
-                    format!("-{}", time(duration.saturating_sub(position))),
-                )
-                .text_right(),
-            )
-            .child(
-                l.button(
-                    "shuffle",
-                    20.,
-                    l.bottom(670.),
-                    48.,
-                    48.,
-                    if self.shuffle {
-                        "shuffle-active"
-                    } else {
-                        "shuffle"
-                    },
-                )
-                .on_click(cx.listener(|this, _, _, cx| this.shuffle_queue(cx))),
-            )
-            .child(
-                l.button("previous", 90., l.bottom(670.), 48., 48., "previous")
-                    .on_click(cx.listener(|this, _, _, cx| this.skip(-1, cx))),
-            )
-            .child(
-                l.button(
-                    "toggle",
-                    163.,
-                    l.bottom(661.),
-                    66.,
-                    66.,
-                    if self.playing(cx) { "pause" } else { "play" },
-                )
-                .bg(rgb(TEXT))
-                .rounded_full()
-                .aria_label("Play or pause")
-                .on_click(cx.listener(|this, _, _, cx| this.toggle(cx))),
-            )
-            .child(
-                l.button("next", 254., l.bottom(670.), 48., 48., "next")
-                    .on_click(cx.listener(|this, _, _, cx| this.skip(1, cx))),
-            )
-            .child(
-                l.button(
-                    "repeat",
-                    324.,
-                    l.bottom(670.),
-                    48.,
-                    48.,
-                    if self.repeat {
-                        "repeat-active"
-                    } else {
-                        "repeat"
-                    },
-                )
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.repeat = !this.repeat;
-                    cx.notify();
-                })),
-            )
-            .child(
-                l.button(
-                    "lyrics",
-                    48.,
-                    l.bottom(766.),
-                    56.,
-                    48.,
-                    if self.show_lyrics {
-                        "lyrics-active"
-                    } else {
-                        "lyrics"
-                    },
-                )
-                .aria_label("Lyrics")
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.show_lyrics = !this.show_lyrics;
-                    cx.notify();
-                })),
-            )
-            .child(
-                l.button("output", 168., l.bottom(766.), 56., 48., "device")
-                    .on_click(cx.listener(|this, _, w, cx| this.open_sheet(Sheet::Output, w, cx))),
-            )
-            .child(
-                l.button("queue", 288., l.bottom(766.), 56., 48., "queue")
-                    .on_click(cx.listener(|this, _, w, cx| this.open_sheet(Sheet::Queue, w, cx))),
-            );
-        if self.busy {
-            d = d.child(l.text(32., l.bottom(573.), 328., 11., SECONDARY, "Loading…"));
-        }
-        d
-    }
-
-    fn playback_background(
-        &mut self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Option<AnyElement> {
-        let source = self
-            .track()
-            .and_then(|track| track.artwork.clone())
-            .map(ImageSource::from)
-            .unwrap_or_else(|| crate::ui::components::now_playing::fallback_cover().into());
-        match source.use_data(None, window, cx) {
-            Some(Ok(image)) if image.frame_count() > 0 => {
-                self.visible_artwork = Some(ImageSource::Render(image))
-            }
-            Some(_) => {
-                let fallback =
-                    ImageSource::from(crate::ui::components::now_playing::fallback_cover());
-                if let Some(Ok(image)) = fallback.use_data(None, window, cx) {
-                    self.visible_artwork = Some(ImageSource::Render(image));
-                }
-            }
-            None => {}
-        }
-        let animate = window.is_window_active() && !modal::is_open(cx) && self.playing(cx);
-        let now = Instant::now();
-        if animate {
-            if let Some(previous) = self.backdrop_sampled_at.replace(now) {
-                self.backdrop_elapsed += now.saturating_duration_since(previous).as_secs_f32();
-            }
-            if self.backdrop_frame.is_none() {
-                self.backdrop_frame = Some(cx.spawn_in(window, async move |this, cx| {
-                    cx.background_executor()
-                        .timer(Duration::from_secs_f64(1. / 15.))
-                        .await;
-                    let _ = this.update_in(cx, |this, window, cx| {
-                        this.backdrop_frame = None;
-                        if window.is_window_active()
-                            && this.page == Page::NowPlaying
-                            && !modal::is_open(cx)
-                            && this.playing(cx)
-                        {
-                            cx.notify();
-                        } else {
-                            this.backdrop_sampled_at = None;
-                        }
-                    });
-                }));
-            }
-        } else {
-            self.backdrop_sampled_at = None;
-            self.backdrop_frame = None;
-        }
-        self.visible_artwork.clone().map(|artwork| {
-            let elapsed = self.backdrop_elapsed;
-            let progress = self
-                .player_dismiss
-                .progress(window.viewport_size().height.as_f32());
-            let scale = window.viewport_size().width.as_f32() / 392.;
-            crate::ui::components::now_playing::render_background_rounded(
-                artwork,
-                elapsed,
-                px(14. * scale * progress),
-            )
-        })
-    }
-
-    fn playing_cover(&self, size: f32, radius: f32) -> Div {
-        artwork_cover(self.visible_artwork.clone(), size, radius)
-    }
-
-    fn now_playing(&mut self, l: Layout, window: &mut Window, cx: &mut Context<Self>) -> Div {
-        self.update_controls_idle(window, cx);
-        let idle = self
-            .controls_motion
-            .sample(f32::from(self.controls_hidden), window);
-        let collapse = self
-            .player_dismiss
-            .progress(window.viewport_size().height.as_f32());
-        let morph = |from: f32, to: f32| from + (to - from) * collapse;
-        let full_opacity = (1. - collapse * 3.).max(0.);
-        let mix = self
-            .lyrics_motion
-            .sample(f32::from(self.show_lyrics), window);
-        let lerp = |a: f32, b: f32| a + (b - a) * mix;
-        let text_x =
-            morph(lerp(32., 100.), 62.) + 170. * 4. * collapse * (1. - collapse) * (1. - mix);
-        let text_right = morph(392., 360.) - 16. - 102. * collapse.powi(6);
-        let text_width = morph(lerp(280., 224.), 180.).min((text_right - text_x).max(24.));
-        let art_y = ((l.top(138.) + l.bottom(138.)) / 2.).max(l.top(90.));
-        let title = self
-            .track()
-            .map_or("Not Playing", |t| t.title.as_str())
-            .to_owned();
-        let artist = self.track().map_or("", |t| t.artist.as_str()).to_owned();
-        let track = self.track().map(|track| (track.id.clone(), track.favorite));
-        let mut d = div().size_full().relative().child(
-            l.button("collapse", 16., l.top(41.), 48., 48., "down")
-                .opacity(full_opacity)
-                .on_click(cx.listener(|this, _, w, cx| {
-                    this.navigate(this.return_page, w, cx);
-                })),
-        );
-        if idle < 0.999 {
-            d = d.child(self.controls(l, cx).opacity(full_opacity * (1. - idle)));
-        }
-        if mix > 0.001 {
-            if self.lyrics.lines.is_empty() {
-                d = d
-                    .child(
-                        l.rect(0., l.top(298.), 392., 40.)
-                            .opacity(full_opacity)
-                            .flex()
-                            .justify_center()
-                            .child(icons::icon("lyrics-empty", l.s)),
-                    )
-                    .child(
-                        l.text(24., l.top(355.), 344., 18., TEXT, "No lyrics available")
-                            .opacity(full_opacity)
-                            .text_center(),
-                    )
-                    .child(
-                        l.rect(100., l.top(389.), 192., 48.)
-                            .opacity(full_opacity)
-                            .id("add-lyrics")
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .text_size(px(14. * l.s))
-                            .text_color(rgb(ACCENT))
-                            .child("Add Lyrics")
-                            .on_click(cx.listener(|this, _, w, cx| this.edit_lyrics(w, cx))),
-                    );
-            } else {
-                let mut playback = crate::domain::playback::PlaybackState::empty();
-                playback.track.lyrics = self.lyrics.clone();
-                if let Some(player) = &self.player {
-                    playback.status = player.read(cx).state().clone();
-                    playback.timeline = player.read(cx).timeline();
-                }
-                let entity = cx.entity().downgrade();
-                let seek: lyrics_panel::LyricsSeek = Rc::new(move |position, cx| {
-                    let _ = entity.update(cx, |this, cx| this.seek_to(position, cx));
-                });
-                let lyrics = lyrics_panel::render_mobile(
-                    &playback,
-                    &mut self.lyric_state,
-                    seek,
-                    392. * l.s,
-                    window,
-                );
-                if window.is_window_active()
-                    && !modal::is_open(cx)
-                    && self.lyric_state.is_animating(&playback, true)
-                {
-                    window.request_animation_frame();
-                }
-                let start = l.top(180.);
-                let end = l.bottom(560.) + (l.bottom(810.) - l.bottom(560.)) * idle;
-                d = d.child(
-                    l.rect(0., start, 392., (end - start).max(100.))
-                        .overflow_hidden()
-                        .opacity(mix * full_opacity)
-                        .child(lyrics),
-                );
-            }
-        }
-        d = d
-            .child(
-                l.rect(
-                    morph(32., 16.),
-                    morph(lerp(art_y, l.top(110.)), 11.),
-                    morph(lerp(328., 52.), 36.),
-                    morph(lerp(328., 52.), 36.),
-                )
-                .child(self.playing_cover(
-                    morph(lerp(328., 52.), 36.) * l.s,
-                    morph(lerp(328., 52.) * 0.06, 6.) * l.s,
-                )),
-            )
-            .child(
-                l.text(
-                    text_x,
-                    morph(lerp(l.bottom(505.), l.top(111.)), 6.),
-                    text_width,
-                    morph(lerp(26., 18.), 14.),
-                    TEXT,
-                    title,
-                )
-                .truncate()
-                .font_weight(if collapse > 0.8 {
-                    FontWeight::SEMIBOLD
-                } else {
-                    FontWeight::BOLD
-                }),
-            )
-            .child(
-                l.text(
-                    text_x,
-                    morph(lerp(l.bottom(548.), l.top(142.)), 29.),
-                    morph(lerp(328., 224.), 180.).min(text_width + 48. * (1. - collapse)),
-                    morph(lerp(14., 11.), 10.),
-                    SECONDARY,
-                    artist,
-                )
-                .truncate(),
-            );
-        if mix < 0.999 {
-            if let Some((id, favorite)) = &track {
-                let id = id.clone();
-                d = d.child(
-                    l.button(
-                        "favorite",
-                        322.,
-                        l.bottom(506.),
-                        48.,
-                        48.,
-                        if *favorite { "heart-filled" } else { "heart" },
-                    )
-                    .opacity((1. - mix) * full_opacity)
-                    .on_click(cx.listener(move |this, _, _, cx| this.favorite(id.clone(), cx))),
-                );
-            }
-        }
-        if let Some((id, _)) = track {
-            d = d.child(
-                l.button(
-                    "song-menu",
-                    326.,
-                    lerp(l.top(42.), l.top(111.)),
-                    48.,
-                    48.,
-                    "more",
-                )
-                .opacity(full_opacity)
-                .on_click(cx.listener(move |this, _, w, cx| {
-                    this.open_sheet(Sheet::Song(id.clone()), w, cx)
-                })),
-            );
-        }
-        if collapse > 0. {
-            let opacity = ((collapse - 0.55) / 0.45).clamp(0., 1.);
-            d = d
-                .child(
-                    l.button(
-                        "morph-mini-toggle",
-                        246.,
-                        5.,
-                        44.,
-                        48.,
-                        if self.playing(cx) {
-                            "mini-pause"
-                        } else {
-                            "mini-play"
-                        },
-                    )
-                    .opacity(opacity),
-                )
-                .child(
-                    l.button("morph-mini-next", 294., 5., 44., 48., "mini-next")
-                        .opacity(opacity),
-                );
-        }
-        d
-    }
-
     fn mini(&self, l: Layout, nav: bool, cx: &mut Context<Self>) -> Div {
         if self.page == Page::NowPlaying && self.player_dismiss.active() {
             return div();
@@ -656,7 +262,7 @@ impl MobileApp {
             ))
             .child(l.text(62., 26., 222., 11., SECONDARY, track.artist.clone()))
             .child(
-                l.rect(0., 0., 288., 64.)
+                l.rect(0., 0., 288., 55.)
                     .id(("track", index))
                     .on_click(cx.listener(move |this, _, w, cx| {
                         if modal::is_open(cx) {
@@ -1100,8 +706,8 @@ impl MobileApp {
         let mut list = ReorderableList::new("playback-queue", &ui.order)
             .size_full()
             .enabled(!ui.rows.values().any(|row| row.removing))
-            .on_reorder(cx.listener(|this, event: &ReorderEvent, _, cx| {
-                let mut entries: Vec<_> = this.visible_queue().into_iter().cloned().collect();
+            .on_reorder(cx.listener(move |this, event: &ReorderEvent, _, cx| {
+                let mut entries: Vec<_> = this.upcoming_queue().into_iter().cloned().collect();
                 if entries
                     .get(event.from)
                     .is_some_and(|entry| ElementId::from(entry.key.clone()) == event.id)
@@ -1109,16 +715,19 @@ impl MobileApp {
                 {
                     let entry = entries.remove(event.from);
                     entries.insert(event.to, entry);
+                    let keys: std::collections::HashSet<_> =
+                        entries.iter().map(|entry| entry.key.clone()).collect();
                     let mut entries = entries.into_iter();
                     for slot in &mut this.queue {
-                        if Some(&slot.key) != this.queue_current.as_ref() {
+                        if keys.contains(&slot.key) {
                             *slot = entries.next().unwrap();
                         }
                     }
                     cx.notify();
                 }
             }));
-        for entry in self.visible_queue() {
+        let entries = self.upcoming_queue();
+        for entry in entries {
             let Some(track) = self
                 .library
                 .as_ref()
@@ -1129,8 +738,6 @@ impl MobileApp {
             let Some(state) = ui.rows.get(&entry.key) else {
                 continue;
             };
-            let selected = self.queue_current.as_ref() == Some(&entry.key)
-                && self.current.as_ref() == Some(&entry.track_id);
             let dragging =
                 ui.order.read(cx).dragged_item() == Some(&ElementId::from(entry.key.clone()));
             let play_entry = entry.clone();
@@ -1138,71 +745,75 @@ impl MobileApp {
             let row = div()
                 .relative()
                 .w_full()
-                .h(px(64. * l.s))
-                .bg(rgb(if dragging { SURFACE } else { BACKGROUND }))
+                .h(px(55. * l.s))
+                .when(dragging, |row| row.bg(rgba(0xffffff18)))
                 .child(
                     l.rect(0., 0., 48., 48.)
                         .child(cover(Some(track), 48. * l.s)),
                 )
-                .child(l.text(
-                    62.,
-                    -1.,
-                    222.,
-                    15.,
-                    if selected { ACCENT } else { TEXT },
-                    track.title.clone(),
-                ))
-                .child(l.text(62., 26., 222., 11., SECONDARY, track.artist.clone()))
                 .child(
-                    l.rect(0., 0., 288., 64.)
+                    l.text(62., -1., 224., 15., TEXT, track.title.clone())
+                        .truncate(),
+                )
+                .child(
+                    l.text(62., 26., 222., 12., TEXT, track.artist.clone())
+                        .opacity(0.55)
+                        .truncate(),
+                )
+                .child(
+                    l.rect(0., 0., 288., 55.)
                         .id((ElementId::from("queue-play"), entry.key.clone()))
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.play_queue_entry(&play_entry, cx)
                         })),
-                )
-                .child(
-                    l.button(
-                        (ElementId::from("queue-more"), entry.key.clone()),
-                        296.,
-                        0.,
-                        48.,
-                        48.,
-                        "more",
-                    )
-                    .on_click(cx.listener(move |this, _, w, cx| {
-                        this.queue_menu_entry = Some(menu_entry.key.clone());
-                        this.open_sheet(Sheet::Song(menu_entry.track_id.clone()), w, cx);
-                    })),
                 );
-            list = list.item(
-                entry.key.clone(),
-                queue::SheetRow::new(
-                    SwipeActions::new(
-                        (ElementId::from("queue-swipe"), entry.key.clone()),
-                        &state.swipe,
-                        row,
-                    )
-                    .right_enabled(false)
-                    .threshold(px(88. * l.s))
-                    .dismissed(state.removing.then_some(SwipeDirection::Left))
-                    .feedback(move |progress, _, _| {
-                        div().size_full().pb(px(16. * l.s)).child(
+            let row = row
+                .child(
+                    l.rect(302., 12., 26., 28.).opacity(0.3).child(
+                        ReorderHandle::new(
+                            &ui.order,
+                            entry.key.clone(),
                             div()
                                 .size_full()
-                                .px(px(20. * l.s))
                                 .flex()
                                 .items_center()
-                                .justify_end()
-                                .bg(rgb(SURFACE))
-                                .opacity(if progress.ready { 1. } else { 0.65 })
-                                .child(icons::icon("trash", l.s)),
+                                .justify_center()
+                                .child(icons::icon("reorder", l.s)),
                         )
+                        .size_full(),
+                    ),
+                )
+                .on_mouse_down(
+                    MouseButton::Right,
+                    cx.listener(move |this, _, w, cx| {
+                        this.queue_menu_entry = Some(menu_entry.key.clone());
+                        this.open_sheet(Sheet::Song(menu_entry.track_id.clone()), w, cx);
                     }),
-                    ui.order.read(cx).scroll_handle(),
-                ),
-            );
+                );
+            let swipe = SwipeActions::new(
+                (ElementId::from("queue-swipe"), entry.key.clone()),
+                &state.swipe,
+                row,
+            )
+            .right_enabled(false)
+            .threshold(px(88. * l.s))
+            .dismissed(state.removing.then_some(SwipeDirection::Left))
+            .feedback(move |progress, _, _| {
+                div().size_full().pb(px(7. * l.s)).child(
+                    div()
+                        .size_full()
+                        .px(px(20. * l.s))
+                        .flex()
+                        .items_center()
+                        .justify_end()
+                        .bg(rgb(SURFACE))
+                        .opacity(if progress.ready { 1. } else { 0.65 })
+                        .child(icons::icon("trash", l.s)),
+                )
+            });
+            list = list.item(entry.key.clone(), swipe);
         }
-        modal::SheetScrollArea::new(ui.order.read(cx).scroll_handle(), list).into_any_element()
+        list.into_any_element()
     }
 
     fn open_sheet(&mut self, sheet: Sheet, window: &mut Window, cx: &mut Context<Self>) {
@@ -1233,9 +844,6 @@ impl MobileApp {
                     .last()
                     .cloned()
                     .unwrap_or_else(|| sheet.clone());
-                if matches!(active, Sheet::Queue) {
-                    this.prepare_queue(window, cx);
-                }
                 this.sheet_content(active, l, cx).into_any_element()
             })
             .unwrap_or_else(|_| div().into_any_element())
@@ -1327,133 +935,6 @@ impl MobileApp {
                                 )
                                 .size_full(),
                         ),
-                    );
-            }
-            Sheet::Queue => {
-                let mut header = div().relative().h(px(144. * l.s)).flex_shrink_0().child(
-                    l.text(24., 0., 344., 22., TEXT, "Queue")
-                        .font_weight(FontWeight::BOLD),
-                );
-                if let Some(t) = self.track() {
-                    header = header
-                        .child(
-                            l.text(
-                                24.,
-                                34.,
-                                344.,
-                                12.,
-                                SECONDARY,
-                                format!("Now Playing · {}", t.artist),
-                            )
-                            .truncate(),
-                        )
-                        .child(l.rect(24., 72., 50., 50.).child(cover(Some(t), 50. * l.s)))
-                        .child(
-                            l.text(88., 72., 214., 16., ACCENT, t.title.clone())
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .truncate(),
-                        )
-                        .child(
-                            l.text(88., 102., 214., 12., SECONDARY, t.artist.clone())
-                                .truncate(),
-                        );
-                }
-                header = header.child(
-                    l.rect(320., 73., 48., 48.)
-                        .id("queue-current-toggle")
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .cursor_pointer()
-                        .role(Role::Button)
-                        .active(|style| style.opacity(0.55))
-                        .child(
-                            div()
-                                .size(px(34. * l.s))
-                                .rounded_full()
-                                .bg(rgb(TEXT))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(
-                                    div()
-                                        .when(!self.playing(cx), |icon| icon.pl(px(1. * l.s)))
-                                        .child(icons::icon(
-                                            if self.playing(cx) { "pause" } else { "play" },
-                                            0.72 * l.s,
-                                        )),
-                                ),
-                        )
-                        .on_click(cx.listener(|this, _, _, cx| this.toggle(cx))),
-                );
-                return div()
-                    .relative()
-                    .w_full()
-                    .flex_grow(1.)
-                    .min_h_0()
-                    .flex()
-                    .flex_col()
-                    .child(header)
-                    .child(
-                        div()
-                            .relative()
-                            .mx(px(24. * l.s))
-                            .min_h_0()
-                            .h(px(self.visible_queue().len() as f32 * 64. * l.s))
-                            .flex_grow(1.)
-                            .child(self.queue_list(l, cx)),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .gap(px(10. * l.s))
-                            .flex_shrink_0()
-                            .px(px(24. * l.s))
-                            .pt(px(16. * l.s))
-                            .pb(px(20. * l.s))
-                            .children(
-                                [
-                                    ("Shuffle", self.shuffle, "shuffle", "shuffle-active"),
-                                    ("Repeat", self.repeat, "repeat", "repeat-active"),
-                                ]
-                                .into_iter()
-                                .enumerate()
-                                .map(
-                                    |(index, (label, selected, icon, active_icon))| {
-                                        div()
-                                            .id(("queue-mode", index))
-                                            .flex_1()
-                                            .h(px(64. * l.s))
-                                            .rounded(px(12. * l.s))
-                                            .bg(rgb(SURFACE))
-                                            .flex()
-                                            .flex_col()
-                                            .items_center()
-                                            .justify_center()
-                                            .gap(px(6. * l.s))
-                                            .text_size(px(11. * l.s))
-                                            .text_color(rgb(if selected {
-                                                ACCENT
-                                            } else {
-                                                SECONDARY
-                                            }))
-                                            .active(|style| style.opacity(0.55))
-                                            .child(icons::icon(
-                                                if selected { active_icon } else { icon },
-                                                l.s,
-                                            ))
-                                            .child(label)
-                                            .on_click(cx.listener(move |this, _, _, cx| {
-                                                if index == 0 {
-                                                    this.shuffle_queue(cx);
-                                                } else {
-                                                    this.repeat = !this.repeat;
-                                                    cx.notify();
-                                                }
-                                            }))
-                                    },
-                                ),
-                            ),
                     );
             }
             Sheet::Song(id) => {
@@ -1658,7 +1139,6 @@ impl MobileApp {
 fn sheet_height(sheet: &Sheet) -> f32 {
     match sheet {
         Sheet::Song(_) => 500.,
-        Sheet::Queue => 0.,
         Sheet::Output => 250.,
         Sheet::Remove(_) => 308.,
         Sheet::Import => 174.,
@@ -1727,7 +1207,7 @@ impl MobileApp {
             _ => self.browse(page, l, window, cx),
         };
         let weak = cx.entity().downgrade();
-        let drag_height = if self.show_lyrics {
+        let drag_height = if self.show_lyrics || self.show_queue {
             l.top(180.)
         } else {
             l.bottom(580.)
@@ -1798,6 +1278,11 @@ impl Render for MobileApp {
                     this.controls_idle_task = None;
                     this.reveal_player_controls(cx);
                     if this.window_active {
+                        #[cfg(target_os = "android")]
+                        {
+                            this.retry_background_playback();
+                            this.publish_system_media(true, cx);
+                        }
                         cx.notify();
                     }
                 }));
@@ -1945,21 +1430,21 @@ impl Render for MobileApp {
                             let touch = view.clone();
                             window.on_mouse_event(move |_: &TouchEvent, phase, _, cx| {
                                 if phase.capture() {
-                                    let _ = touch
-                                        .update(cx, |this, cx| this.reveal_player_controls(cx));
+                                    let _ =
+                                        touch.update(cx, |this, _| this.record_player_activity());
                                 }
                             });
                             let mouse = view.clone();
                             window.on_mouse_event(move |_: &MouseDownEvent, phase, _, cx| {
                                 if phase.capture() {
-                                    let _ = mouse
-                                        .update(cx, |this, cx| this.reveal_player_controls(cx));
+                                    let _ =
+                                        mouse.update(cx, |this, _| this.record_player_activity());
                                 }
                             });
                             window.on_mouse_event(move |_: &ScrollWheelEvent, phase, _, cx| {
                                 if phase.capture() {
                                     let _ =
-                                        view.update(cx, |this, cx| this.reveal_player_controls(cx));
+                                        view.update(cx, |this, _| this.record_player_activity());
                                 }
                             });
                         },

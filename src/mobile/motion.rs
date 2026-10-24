@@ -181,10 +181,61 @@ impl PlayerDismiss {
     }
 }
 
+#[derive(Default)]
+pub(super) struct LyricsControlsScroll {
+    previous_line: Option<usize>,
+    advanced_lines: usize,
+}
+
+impl LyricsControlsScroll {
+    fn advance(&mut self, line: usize, phase: TouchPhase) -> bool {
+        match phase {
+            TouchPhase::Started => self.previous_line = Some(line),
+            TouchPhase::Ended => self.previous_line = None,
+            TouchPhase::Cancelled => *self = Self::default(),
+            TouchPhase::Moved => {
+                if let Some(previous) = self.previous_line.replace(line) {
+                    self.advanced_lines += line.saturating_sub(previous);
+                }
+            }
+        }
+        self.advanced_lines >= 3
+    }
+}
+
 impl MobileApp {
+    pub(super) fn record_player_activity(&mut self) {
+        if !self.controls_hidden {
+            self.controls_idle_since = Instant::now();
+        }
+    }
+
     pub(super) fn reveal_player_controls(&mut self, cx: &mut Context<Self>) {
         self.controls_idle_since = Instant::now();
+        self.controls_scroll = LyricsControlsScroll::default();
         if std::mem::replace(&mut self.controls_hidden, false) {
+            cx.notify();
+        }
+    }
+
+    pub(super) fn scroll_player_controls(
+        &mut self,
+        event: &ScrollWheelEvent,
+        cx: &mut Context<Self>,
+    ) {
+        if event.touch_phase == TouchPhase::Cancelled {
+            self.controls_scroll = LyricsControlsScroll::default();
+            return;
+        }
+        if event.delta.pixel_delta(px(1.)).y > px(0.) {
+            self.reveal_player_controls(cx);
+        } else if !self.controls_hidden
+            && let Some(line) = self.lyric_state.mobile_scroll_line()
+            && self.controls_scroll.advance(line, event.touch_phase)
+        {
+            self.controls_hidden = true;
+            self.controls_idle_task = None;
+            self.controls_scroll = LyricsControlsScroll::default();
             cx.notify();
         }
     }
@@ -327,9 +378,26 @@ impl MobileApp {
 
 #[cfg(test)]
 mod tests {
-    use super::{PlayerDismiss, PlayerTouch};
-    use gpui::{TouchId, point, px};
+    use super::{LyricsControlsScroll, PlayerDismiss, PlayerTouch};
+    use gpui::{TouchId, TouchPhase, point, px};
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn lyrics_controls_count_manual_lines_across_gestures() {
+        let mut scroll = LyricsControlsScroll::default();
+        assert!(!scroll.advance(10, TouchPhase::Started));
+        assert!(!scroll.advance(10, TouchPhase::Moved));
+        assert!(!scroll.advance(11, TouchPhase::Moved));
+        assert!(!scroll.advance(11, TouchPhase::Ended));
+
+        assert!(!scroll.advance(20, TouchPhase::Started));
+        assert!(!scroll.advance(21, TouchPhase::Moved));
+        assert!(scroll.advance(22, TouchPhase::Moved));
+
+        assert!(!scroll.advance(22, TouchPhase::Cancelled));
+        assert!(!scroll.advance(22, TouchPhase::Started));
+        assert!(!scroll.advance(23, TouchPhase::Moved));
+    }
 
     #[test]
     fn player_dismiss_reversal_and_interrupted_settle_keep_position() {

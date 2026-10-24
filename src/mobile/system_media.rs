@@ -12,11 +12,13 @@ pub(super) struct SystemMedia {
     commands: Option<Task<()>>,
     artwork: Option<Task<()>>,
     background: Option<Task<()>>,
+    background_error: Option<String>,
     last_update: Option<Instant>,
 }
 
 impl MobileApp {
     pub(super) fn connect_system_media(&mut self, cx: &mut Context<Self>) {
+        self.retry_background_playback();
         if self.system_media.session.is_some() {
             self.publish_system_media(true, cx);
             self.load_system_artwork(cx);
@@ -110,26 +112,54 @@ impl MobileApp {
             return;
         }
         if matches!(playback, MediaPlayback::Playing | MediaPlayback::Buffering)
+            && self.window_active
             && self.system_media.background.is_none()
+            && self.system_media.background_error.is_none()
         {
             self.system_media.background =
                 Some(cx.spawn(
                     async move |this, cx| match session.start_background_playback().await {
                         Ok(mut lease) => {
+                            log::debug!("Background playback lease acquired");
                             let _ = lease.stopped().await;
                             let _ = this.update(cx, |this, cx| {
+                                if !this.system_media.session.as_ref().is_some_and(|current| {
+                                    Rc::ptr_eq(current, &session)
+                                }) {
+                                    return;
+                                }
                                 this.system_media_command(MediaCommand::Pause, cx);
                                 this.system_media.background = None;
                             });
                         }
                         Err(error) => {
+                            log::warn!("Could not start background playback: {error}");
                             let _ = this.update(cx, |this, cx| {
-                                this.error = Some(format!("Background playback: {error}"));
+                                if !this.system_media.session.as_ref().is_some_and(|current| {
+                                    Rc::ptr_eq(current, &session)
+                                }) {
+                                    return;
+                                }
+                                this.system_media.background = None;
+                                let message = "Background playback is unavailable. Return to the app and try playing again.".to_owned();
+                                if this.window_active {
+                                    this.error = Some(message.clone());
+                                }
+                                this.system_media.background_error = Some(message);
                                 cx.notify();
                             });
                         }
                     },
                 ));
+        }
+    }
+
+    pub(super) fn retry_background_playback(&mut self) {
+        if self.window_active
+            && let Some(error) = self.system_media.background_error.take()
+            && self.error.as_ref() == Some(&error)
+        {
+            self.error = None;
         }
     }
 
@@ -181,6 +211,9 @@ impl MobileApp {
     }
 
     fn system_media_command(&mut self, command: MediaCommand, cx: &mut Context<Self>) {
+        if matches!(command, MediaCommand::Play) {
+            self.retry_background_playback();
+        }
         match command {
             MediaCommand::Next => self.skip(1, cx),
             MediaCommand::Previous => self.skip(-1, cx),

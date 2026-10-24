@@ -32,10 +32,10 @@ pub(super) struct QueueUi {
 }
 
 impl MobileApp {
-    pub(super) fn visible_queue(&self) -> Vec<&QueueEntry> {
+    pub(super) fn upcoming_queue(&self) -> Vec<&QueueEntry> {
         self.queue
             .iter()
-            .filter(|entry| Some(&entry.key) != self.queue_current.as_ref())
+            .skip(self.queue_position().map_or(0, |index| index + 1))
             .collect()
     }
 
@@ -104,113 +104,5 @@ impl MobileApp {
             });
         })
         .detach();
-    }
-}
-
-pub(super) struct SheetRow {
-    content: Option<AnyElement>,
-    scroll: ScrollHandle,
-    defer: bool,
-}
-
-impl SheetRow {
-    pub fn new(content: impl IntoElement, scroll: ScrollHandle) -> Self {
-        let clipped = Self {
-            content: Some(content.into_any_element()),
-            scroll: scroll.clone(),
-            defer: false,
-        };
-        Self {
-            content: Some(clipped.into_any_element()),
-            scroll,
-            defer: true,
-        }
-    }
-}
-
-impl IntoElement for SheetRow {
-    type Element = Self;
-    fn into_element(self) -> Self {
-        self
-    }
-}
-
-impl Element for SheetRow {
-    type RequestLayoutState = ();
-    type PrepaintState = ();
-
-    fn id(&self) -> Option<ElementId> {
-        None
-    }
-    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-        None
-    }
-
-    fn request_layout(
-        &mut self,
-        _: Option<&GlobalElementId>,
-        _: Option<&InspectorElementId>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> (LayoutId, ()) {
-        (
-            self.content.as_mut().unwrap().request_layout(window, cx),
-            (),
-        )
-    }
-
-    fn prepaint(
-        &mut self,
-        _: Option<&GlobalElementId>,
-        _: Option<&InspectorElementId>,
-        _: Bounds<Pixels>,
-        _: &mut (),
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        let mask = Some(ContentMask {
-            bounds: self
-                .scroll
-                .bounds()
-                .intersect(&window.content_mask().bounds),
-        });
-        if self.defer {
-            // BottomSheet paints at 1000; UIC's lifted rows otherwise paint below it.
-            window.defer_draw(
-                self.content.take().unwrap(),
-                window.element_offset(),
-                1001,
-                mask,
-            );
-        } else {
-            window.with_content_mask(mask, |window| {
-                self.content.as_mut().unwrap().prepaint(window, cx)
-            });
-        }
-    }
-
-    fn paint(
-        &mut self,
-        _: Option<&GlobalElementId>,
-        _: Option<&InspectorElementId>,
-        _: Bounds<Pixels>,
-        _: &mut (),
-        _: &mut (),
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        if !self.defer {
-            window.with_content_mask(
-                Some(ContentMask {
-                    bounds: self
-                        .scroll
-                        .bounds()
-                        .intersect(&window.content_mask().bounds),
-                }),
-                |window| {
-                    self.content.as_mut().unwrap().paint(window, cx);
-                },
-            );
-        }
     }
 }

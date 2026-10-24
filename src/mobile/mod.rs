@@ -64,7 +64,6 @@ enum LibraryTab {
 enum Sheet {
     Import,
     Song(String),
-    Queue,
     Output,
     Remove(String),
 }
@@ -83,9 +82,12 @@ pub struct MobileApp {
     current: Option<String>,
     lyrics: LyricsDocument,
     show_lyrics: bool,
+    show_translation: bool,
+    show_queue: bool,
     lyrics_motion: motion::ValueMotion,
     controls_hidden: bool,
     controls_motion: motion::ValueMotion,
+    controls_scroll: motion::LyricsControlsScroll,
     controls_idle_since: Instant,
     controls_idle_task: Option<Task<()>>,
     busy: bool,
@@ -193,9 +195,12 @@ impl MobileApp {
             current: None,
             lyrics: LyricsDocument::empty(),
             show_lyrics: false,
+            show_translation: true,
+            show_queue: false,
             lyrics_motion: motion::ValueMotion::new(0.),
             controls_hidden: false,
             controls_motion: motion::ValueMotion::new(0.),
+            controls_scroll: motion::LyricsControlsScroll::default(),
             controls_idle_since: Instant::now(),
             controls_idle_task: None,
             busy: true,
@@ -265,8 +270,9 @@ impl MobileApp {
             modal::dismiss(window, cx);
             window.set_back_enabled(!self.page.is_tab());
             cx.notify();
-        } else if self.page == Page::NowPlaying && self.show_lyrics {
+        } else if self.page == Page::NowPlaying && (self.show_lyrics || self.show_queue) {
             self.show_lyrics = false;
+            self.show_queue = false;
             cx.notify();
         } else if self.page == Page::NowPlaying {
             self.navigate(self.return_page, window, cx);
@@ -479,6 +485,8 @@ impl MobileApp {
     }
 
     fn toggle(&mut self, cx: &mut Context<Self>) {
+        #[cfg(target_os = "android")]
+        self.retry_background_playback();
         if let Some(player) = &self.player {
             if let Err(error) = player.update(cx, |player, cx| player.toggle_playback(cx)) {
                 self.error = Some(error.to_string());
@@ -591,10 +599,12 @@ impl MobileApp {
 
     fn shuffle_queue(&mut self, cx: &mut Context<Self>) {
         self.shuffle = !self.shuffle;
+        let start = self.queue_position().map_or(0, |index| index + 1);
+        let upcoming = &mut self.queue[start..];
         if self.shuffle {
-            self.queue.sort_by_cached_key(|_| uuid::Uuid::new_v4());
+            upcoming.sort_by_cached_key(|_| uuid::Uuid::new_v4());
         } else if let Some(library) = &self.library {
-            self.queue.sort_by_key(|entry| {
+            upcoming.sort_by_key(|entry| {
                 library
                     .tracks
                     .iter()

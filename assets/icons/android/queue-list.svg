@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 26"><defs><filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="0.32" result="blur"/><feColorMatrix in="blur" type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.4 0" result="halo"/><feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g filter="url(#glow)">
+  <g fill="currentColor"><circle cx="3.5" cy="6" r="1.65"/><circle cx="3.5" cy="13" r="1.65"/><circle cx="3.5" cy="20" r="1.65"/></g>
+  <path d="M9.5 6h13M9.5 13h13M9.5 20h13" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round"/>
+</g></svg>

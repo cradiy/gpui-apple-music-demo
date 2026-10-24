@@ -32,6 +32,23 @@ pub struct LyricsPanelState {
 }
 
 impl LyricsPanelState {
+    pub(crate) fn mobile_scroll_line(&self) -> Option<usize> {
+        let layout = self.mobile_layout.as_ref()?;
+        if layout.rows.is_empty() || layout.document_id != self.fullscreen.document_id {
+            return None;
+        }
+        let row = self.fullscreen.handle.top_item().saturating_sub(1);
+        let line = row.saturating_sub(usize::from(
+            self.fullscreen.gap_after.is_some_and(|index| row > index),
+        ));
+        Some(line.min(layout.rows.len() - 1))
+    }
+
+    pub(crate) fn resume_mobile_following(&mut self) {
+        self.fullscreen.last_user_scroll.set(None);
+        self.fullscreen.stagger_enabled = false;
+    }
+
     pub(crate) fn is_animating(&self, playback: &PlaybackState, fullscreen: bool) -> bool {
         let state = if fullscreen {
             &self.fullscreen
@@ -71,6 +88,7 @@ pub type LyricsSeek = Rc<dyn Fn(Duration, &mut gpui::App)>;
 struct MobileLyricsLayout {
     document_id: usize,
     width: f32,
+    show_translation: bool,
     rows: Rc<Vec<MobileLyricRow>>,
 }
 
@@ -136,6 +154,7 @@ impl LyricsPresentationClock {
 
 struct LyricsScrollState {
     document_id: usize,
+    gap_after: Option<usize>,
     previous_focus: Option<usize>,
     handle: ScrollHandle,
     last_user_scroll: Rc<Cell<Option<Instant>>>,
@@ -152,6 +171,7 @@ impl Default for LyricsScrollState {
     fn default() -> Self {
         Self {
             document_id: 0,
+            gap_after: None,
             previous_focus: None,
             handle: ScrollHandle::new(),
             last_user_scroll: Rc::new(Cell::new(None)),
@@ -172,6 +192,7 @@ impl LyricsScrollState {
             return;
         }
         self.document_id = document_id;
+        self.gap_after = None;
         self.previous_focus = None;
         self.handle = ScrollHandle::new();
         self.last_user_scroll.set(None);
@@ -241,14 +262,15 @@ pub fn render_mobile(
     state: &mut LyricsPanelState,
     seek: LyricsSeek,
     width: f32,
+    show_translation: bool,
     window: &gpui::Window,
 ) -> AnyElement {
     let document_id = Arc::as_ptr(&playback.track.lyrics.lines) as *const LyricLine as usize;
-    if state
-        .mobile_layout
-        .as_ref()
-        .is_none_or(|layout| layout.document_id != document_id || layout.width != width)
-    {
+    if state.mobile_layout.as_ref().is_none_or(|layout| {
+        layout.document_id != document_id
+            || layout.width != width
+            || layout.show_translation != show_translation
+    }) {
         let scale = width / 392.;
         // TextBlur and TimedText paint one shaped line. Split only their visual
         // fragments; the document, seek target and spring remain one lyric row.
@@ -299,12 +321,16 @@ pub fn render_mobile(
                     .into_iter()
                     .map(|range| slice_lyric_line(line, range))
                     .collect::<Vec<_>>();
-                let translations = line.translation.as_ref().map_or_else(Vec::new, |text| {
-                    wrap(text.clone(), 13.5, FontWeight::MEDIUM)
-                        .into_iter()
-                        .map(|range| SharedString::from(text[range].to_owned()))
-                        .collect()
-                });
+                let translations = line
+                    .translation
+                    .as_ref()
+                    .filter(|text| show_translation && !text.trim().is_empty())
+                    .map_or_else(Vec::new, |text| {
+                        wrap(text.clone(), 13.5, FontWeight::MEDIUM)
+                            .into_iter()
+                            .map(|range| SharedString::from(text[range].to_owned()))
+                            .collect()
+                    });
                 let primary_height = primary.len() as f32 * 28. * scale * 1.3;
                 let translation_height = if translations.is_empty() {
                     0.
@@ -322,8 +348,10 @@ pub fn render_mobile(
         state.mobile_layout = Some(MobileLyricsLayout {
             document_id,
             width,
+            show_translation,
             rows: Rc::new(rows),
         });
+        window.request_animation_frame();
     }
     let rows = state.mobile_layout.as_ref().unwrap().rows.clone();
     render_panel(playback, state, seek, true, width, Some(rows))
@@ -360,6 +388,7 @@ fn render_panel(
     } else {
         &mut state.inline
     };
+    scroll_state.gap_after = gap.map(|gap| gap.previous);
     let mut rows = Vec::with_capacity(lyrics.lines.len() + usize::from(gap.is_some()) + 2);
     rows.push(
         div()
@@ -400,7 +429,15 @@ fn render_panel(
     let focus_changed = previous_focus.is_some_and(|previous| previous != focus);
     let user_scrolling = scroll_state.last_user_scroll.get().is_some();
     let previous_offset = scroll_state.handle.offset().y.as_f32();
-    update_scroll_position(scroll_state, focus, focus_child);
+    let previous_child = mobile.then(|| {
+        if focus == 0 {
+            0
+        } else {
+            let previous = focus - 1;
+            1 + previous + usize::from(gap.is_some_and(|gap| gap.previous < previous))
+        }
+    });
+    update_scroll_position(scroll_state, focus, focus_child, previous_child);
     let scroll_offset = scroll_state.handle.offset().y.as_f32();
     if focus_changed {
         scroll_state.stagger_enabled = previous_focus.is_some_and(|previous| previous + 1 == focus);
@@ -428,7 +465,11 @@ fn render_panel(
             *motion = DelayedSpring::new(scroll_offset);
             0.
         };
-        let edge_opacity = lyric_edge_opacity(&scroll_state.handle, rows.len(), row_offset);
+        let edge_opacity = if mobile {
+            1.
+        } else {
+            lyric_edge_opacity(&scroll_state.handle, rows.len(), row_offset)
+        };
         let target = lyric_visual_target(index, &row_context);
         if index >= scroll_state.row_visuals.len() {
             scroll_state.row_visuals.push(target);
@@ -452,7 +493,11 @@ fn render_panel(
         if let Some(gap) = gap
             && gap.previous == index
         {
-            let edge_opacity = lyric_edge_opacity(&scroll_state.handle, rows.len(), 0.);
+            let edge_opacity = if mobile {
+                1.
+            } else {
+                lyric_edge_opacity(&scroll_state.handle, rows.len(), 0.)
+            };
             rows.push(lyric_gap_row(
                 gap,
                 position,
@@ -465,7 +510,11 @@ fn render_panel(
     rows.push(
         div()
             .w_full()
-            .h(px(if fullscreen { 300. } else { 370. }))
+            .h(if mobile {
+                scroll_state.handle.bounds().size.height
+            } else {
+                px(if fullscreen { 300. } else { 370. })
+            })
             .flex_none()
             .into_any_element(),
     );
@@ -600,7 +649,12 @@ fn render_panel(
         .into_any_element()
 }
 
-fn update_scroll_position(state: &mut LyricsScrollState, focus: usize, focus_child: usize) {
+fn update_scroll_position(
+    state: &mut LyricsScrollState,
+    focus: usize,
+    focus_child: usize,
+    previous_child: Option<usize>,
+) {
     let now = Instant::now();
     if state
         .last_user_scroll
@@ -612,7 +666,7 @@ fn update_scroll_position(state: &mut LyricsScrollState, focus: usize, focus_chi
         return;
     }
 
-    let Some(target) = centered_scroll_target(&state.handle, focus_child) else {
+    let Some(target) = lyric_scroll_target(&state.handle, focus_child, previous_child) else {
         return;
     };
     let returning_from_user_scroll = state.last_user_scroll.take().is_some();
@@ -662,13 +716,20 @@ fn update_scroll_position(state: &mut LyricsScrollState, focus: usize, focus_chi
     state.previous_focus = Some(focus);
 }
 
-fn centered_scroll_target(handle: &ScrollHandle, item: usize) -> Option<f32> {
+fn lyric_scroll_target(
+    handle: &ScrollHandle,
+    item: usize,
+    previous_child: Option<usize>,
+) -> Option<f32> {
     let viewport = handle.bounds();
     if viewport.size.height <= px(0.) {
         return None;
     }
-    let row = handle.bounds_for_item(item)?;
-    let target = viewport.center().y - row.center().y;
+    let target = if let Some(previous_child) = previous_child {
+        viewport.top() - handle.bounds_for_item(previous_child)?.top()
+    } else {
+        viewport.center().y - handle.bounds_for_item(item)?.center().y
+    };
     let max_offset = handle.max_offset().y.as_f32().max(0.);
     Some(target.as_f32().clamp(-max_offset, 0.))
 }
@@ -999,7 +1060,12 @@ fn lyric_row(
         primary
     };
     let text = div().w_full().flex().flex_col().child(primary).when_some(
-        line.translation.clone(),
+        line.translation.clone().filter(|_| {
+            context
+                .mobile_rows
+                .as_ref()
+                .is_none_or(|rows| !rows[index].translations.is_empty())
+        }),
         |text, translation| {
             let translation = if context.mode == LyricsMode::Synced {
                 let translations = context
