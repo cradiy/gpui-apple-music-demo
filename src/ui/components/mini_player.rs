@@ -1,3 +1,4 @@
+use gpui_icons::GpuiIcons;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -11,11 +12,8 @@ use gpui::{
     svg,
 };
 use gpui_effects::{TimedText, color_flow};
-use uic::{
-    assets::LucideIcons,
-    components::slider::{
-        Slider, SliderAppearance, SliderState, SliderThumbVisibility, SliderTooltipPlacement,
-    },
+use uic::components::slider::{
+    Slider, SliderAppearance, SliderState, SliderThumbVisibility, SliderTooltipPlacement,
 };
 
 use crate::{
@@ -221,7 +219,7 @@ impl MiniPlayer {
                     })
                     .child(
                         svg()
-                            .path(LucideIcons::Maximize2)
+                            .path(GpuiIcons::LucideMaximize2)
                             .size(px(18.))
                             .text_color(rgba(0xffffffff)),
                     ),
@@ -363,7 +361,7 @@ impl MiniPlayer {
             .child(
                 mini_player_icon_button(
                     "now-playing-repeat",
-                    LucideIcons::Repeat,
+                    GpuiIcons::LucideRepeat,
                     17.,
                     true,
                     repeat != RepeatMode::Off,

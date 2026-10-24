@@ -1,3 +1,4 @@
+use gpui_icons::GpuiIcons;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -11,14 +12,11 @@ use gpui::{
     PathPromptOptions, Render, SharedString, Task, div, img, prelude::*, px, rgba, svg,
 };
 use gpui_tokio::Tokio;
-use uic::{
-    assets::LucideIcons,
-    components::{
-        context_menu::{ContextMenu, ContextMenuItem},
-        input::{Input, InputEvent, InputMode, TextInput},
-        modal::{self, Modal},
-        scrollbar::ScrollbarAppearance,
-    },
+use uic::components::{
+    context_menu::{ContextMenu, ContextMenuItem},
+    input::{Input, InputEvent, InputMode, TextInput},
+    modal::{self, Modal},
+    scrollbar::ScrollbarAppearance,
 };
 
 use crate::ui::components::feedback as toast;
@@ -370,18 +368,18 @@ impl SongsPage {
 
         let mut menu = ContextMenu::new()
             .item(ContextMenuItem::submenu_with(
-                |_, _| menu_label(LucideIcons::ListMusic, "Add to Playlist"),
+                |_, _| menu_label(GpuiIcons::LucideListMusic, "Add to Playlist"),
                 add_menu,
             ))
             .separator()
             .action_with(
-                |_, _| menu_label(LucideIcons::BadgeInfo, "Get Info"),
+                |_, _| menu_label(GpuiIcons::LucideBadgeInfo, "Get Info"),
                 move |window, cx| {
                     open_track_editor(info_track.clone(), Some(info_entity.clone()), window, cx)
                 },
             )
             .action_with(
-                move |_, _| menu_label(LucideIcons::Heart, like_label),
+                move |_, _| menu_label(GpuiIcons::LucideHeart, like_label),
                 move |_, cx| {
                     like_entity.update(cx, |page, cx| {
                         page.set_liked(like_track_id.clone(), should_like, cx);
@@ -390,7 +388,7 @@ impl SongsPage {
             )
             .separator()
             .action_with(
-                |_, _| menu_label(LucideIcons::ListPlus, crate::ui::strings::play_next()),
+                |_, _| menu_label(GpuiIcons::LucideListPlus, crate::ui::strings::play_next()),
                 {
                     let entity = entity.clone();
                     let track = delete_label_track.clone();
@@ -402,7 +400,7 @@ impl SongsPage {
                 },
             )
             .action_with(
-                |_, _| menu_label(LucideIcons::ListEnd, crate::ui::strings::add_to_queue()),
+                |_, _| menu_label(GpuiIcons::LucideListEnd, crate::ui::strings::add_to_queue()),
                 {
                     let entity = entity.clone();
                     let track = delete_label_track.clone();
@@ -415,7 +413,7 @@ impl SongsPage {
             )
             .separator()
             .action_with(
-                |_, _| menu_label(LucideIcons::Copy, "Copy"),
+                |_, _| menu_label(GpuiIcons::LucideCopy, "Copy"),
                 move |_, cx| {
                     cx.write_to_clipboard(ClipboardItem::new_string(song_clipboard_text(
                         &copy_track,
@@ -426,7 +424,7 @@ impl SongsPage {
         if let Some(artist_id) = artist_id {
             let artist_entity = entity.clone();
             menu = menu.action_with(
-                |_, _| menu_label(LucideIcons::MicVocal, "Go to Artist"),
+                |_, _| menu_label(GpuiIcons::LucideMicVocal, "Go to Artist"),
                 move |_, cx| {
                     artist_entity.update(cx, |_, cx| {
                         cx.emit(SongsPageEvent::Navigate(Page::Artist(
@@ -439,7 +437,7 @@ impl SongsPage {
         if let Some(album_id) = album_id {
             let album_entity = entity.clone();
             menu = menu.action_with(
-                |_, _| menu_label(LucideIcons::DiscAlbum, "Go to Album"),
+                |_, _| menu_label(GpuiIcons::LucideDiscAlbum, "Go to Album"),
                 move |_, cx| {
                     album_entity.update(cx, |_, cx| {
                         cx.emit(SongsPageEvent::Navigate(Page::Album(
@@ -453,7 +451,7 @@ impl SongsPage {
         theme::style_context_menu(
             menu.separator().item(
                 ContextMenuItem::action_with(
-                    |_, _| menu_label(LucideIcons::Trash2, "Delete from Library"),
+                    |_, _| menu_label(GpuiIcons::LucideTrash2, "Delete from Library"),
                     move |window, cx| {
                         confirm_delete(
                             delete_entity.clone(),
@@ -746,7 +744,7 @@ fn playlist_action_label(label: String) -> Div {
         .text_size(px(12.))
         .child(
             svg()
-                .path(LucideIcons::Music2)
+                .path(GpuiIcons::LucideMusic2)
                 .size(px(16.))
                 .flex_none()
                 .text_color(rgba(0xe3e1e9d9)),
@@ -754,7 +752,7 @@ fn playlist_action_label(label: String) -> Div {
         .child(div().min_w_0().truncate().child(label))
 }
 
-fn menu_label(icon: LucideIcons, label: &'static str) -> Div {
+fn menu_label(icon: GpuiIcons, label: &'static str) -> Div {
     div()
         .flex()
         .items_center()
@@ -1190,7 +1188,9 @@ impl TrackEditor {
                                                             .text_color(rgba(0xffffff77))
                                                             .child(
                                                                 svg()
-                                                                    .path(LucideIcons::ImagePlus)
+                                                                    .path(
+                                                                        GpuiIcons::LucideImagePlus,
+                                                                    )
                                                                     .size(px(28.)),
                                                             )
                                                             .child(
@@ -1783,7 +1783,7 @@ fn editor_cover_image(state: &TrackEditor, size: gpui::Pixels) -> Div {
             |cover| {
                 cover.child(
                     svg()
-                        .path(LucideIcons::Music2)
+                        .path(GpuiIcons::LucideMusic2)
                         .size(px(34.))
                         .text_color(rgba(0xffffff55)),
                 )

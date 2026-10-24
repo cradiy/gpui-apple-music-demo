@@ -1,3 +1,4 @@
+use gpui_icons::GpuiIcons;
 use std::{
     sync::{Arc, OnceLock},
     time::Instant,
@@ -10,10 +11,7 @@ use gpui::{
 use gpui_effects::{
     ArtworkFlowOptions, LiquidGlass, LiquidGlassAppearance, artwork_flow, paint_liquid_glass,
 };
-use uic::{
-    assets::LucideIcons,
-    components::context_menu::{self, ContextMenu},
-};
+use uic::components::context_menu::{self, ContextMenu};
 
 use crate::ui::components::feedback as toast;
 use crate::{
@@ -288,7 +286,7 @@ pub fn render(
                                                 if favorite {
                                                     RomusIcons::FillStar.path()
                                                 } else {
-                                                    LucideIcons::Star.path()
+                                                    GpuiIcons::LucideStar.path()
                                                 },
                                                 20.,
                                                 favorite,
@@ -306,7 +304,7 @@ pub fn render(
                                         .child(
                                             round_icon_button(
                                                 "track-actions",
-                                                LucideIcons::Ellipsis,
+                                                GpuiIcons::LucideEllipsis,
                                                 22.,
                                                 false,
                                                 current_track.is_some(),
@@ -376,7 +374,7 @@ fn render_window_controls(
             controls_capsule(true)
                 .when(cfg!(target_os = "macos"), |this| this.ml(px(68.)))
                 .child(
-                    top_icon_button("close-now-playing", LucideIcons::X).on_click(cx.listener(
+                    top_icon_button("close-now-playing", GpuiIcons::LucideX).on_click(cx.listener(
                         |app, _, _, cx| {
                             app.now_playing = false;
                             cx.notify();
@@ -384,11 +382,10 @@ fn render_window_controls(
                     )),
                 )
                 .child(
-                    top_icon_button("mini-now-playing", LucideIcons::PictureInPicture2).on_click(
-                        cx.listener(|app, _, window, cx| {
+                    top_icon_button("mini-now-playing", GpuiIcons::LucidePictureInPicture2)
+                        .on_click(cx.listener(|app, _, window, cx| {
                             app.enter_mini_player(window, cx);
-                        }),
-                    ),
+                        })),
                 ),
         )
         .when(cfg!(not(target_os = "macos")), |bar| {
@@ -469,7 +466,7 @@ fn render_view_switcher(app: &mut MusicShell, cx: &mut gpui::Context<MusicShell>
                 }))
                 .child(
                     svg()
-                        .path(LucideIcons::MicVocal)
+                        .path(GpuiIcons::LucideMicVocal)
                         .size(px(20.))
                         .text_color(rgba(0xffffffff)),
                 ),
@@ -493,7 +490,7 @@ fn render_view_switcher(app: &mut MusicShell, cx: &mut gpui::Context<MusicShell>
                 }))
                 .child(
                     svg()
-                        .path(LucideIcons::ListMusic)
+                        .path(GpuiIcons::LucideListMusic)
                         .size(px(20.))
                         .text_color(rgba(0xffffffe3)),
                 ),
@@ -533,7 +530,7 @@ fn round_icon_button(
         }))
 }
 
-fn top_icon_button(id: &'static str, icon: LucideIcons) -> Stateful<Div> {
+fn top_icon_button(id: &'static str, icon: GpuiIcons) -> Stateful<Div> {
     div()
         .id(id)
         .size(px(27.))
@@ -559,18 +556,18 @@ fn now_playing_track_menu(entity: gpui::Entity<MusicShell>, track: TrackResponse
 
     let mut menu = ContextMenu::new()
         .action_with(
-            |_, _| menu_label(LucideIcons::BadgeInfo, "Get Info"),
+            |_, _| menu_label(GpuiIcons::LucideBadgeInfo, "Get Info"),
             move |window, cx| songs::show_track_info(info_track.clone(), window, cx),
         )
         .action_with(
-            move |_, _| menu_label(LucideIcons::Heart, like_label),
+            move |_, _| menu_label(GpuiIcons::LucideHeart, like_label),
             move |_, cx| {
                 favorite_entity.update(cx, |app, cx| app.toggle_current_favorite(cx));
             },
         )
         .separator()
         .action_with(
-            |_, _| menu_label(LucideIcons::ListPlus, strings::play_next()),
+            |_, _| menu_label(GpuiIcons::LucideListPlus, strings::play_next()),
             move |_, cx| {
                 next_entity.update(cx, |app, cx| {
                     app.playback.update(cx, |playback, cx| {
@@ -581,7 +578,7 @@ fn now_playing_track_menu(entity: gpui::Entity<MusicShell>, track: TrackResponse
             },
         )
         .action_with(
-            |_, _| menu_label(LucideIcons::ListEnd, strings::add_to_queue()),
+            |_, _| menu_label(GpuiIcons::LucideListEnd, strings::add_to_queue()),
             move |_, cx| {
                 enqueue_entity.update(cx, |app, cx| {
                     app.playback.update(cx, |playback, cx| {
@@ -593,7 +590,7 @@ fn now_playing_track_menu(entity: gpui::Entity<MusicShell>, track: TrackResponse
         )
         .separator()
         .action_with(
-            |_, _| menu_label(LucideIcons::Copy, "Copy"),
+            |_, _| menu_label(GpuiIcons::LucideCopy, "Copy"),
             move |_, cx| {
                 cx.write_to_clipboard(ClipboardItem::new_string(songs::song_clipboard_text(
                     &copy_track,
@@ -604,7 +601,7 @@ fn now_playing_track_menu(entity: gpui::Entity<MusicShell>, track: TrackResponse
     if let Some(artist_id) = artist_id {
         let artist_entity = entity.clone();
         menu = menu.action_with(
-            |_, _| menu_label(LucideIcons::MicVocal, "Go to Artist"),
+            |_, _| menu_label(GpuiIcons::LucideMicVocal, "Go to Artist"),
             move |_, cx| {
                 artist_entity.update(cx, |app, cx| {
                     app.now_playing = false;
@@ -615,7 +612,7 @@ fn now_playing_track_menu(entity: gpui::Entity<MusicShell>, track: TrackResponse
     }
     if let Some(album_id) = album_id {
         menu = menu.action_with(
-            |_, _| menu_label(LucideIcons::DiscAlbum, "Go to Album"),
+            |_, _| menu_label(GpuiIcons::LucideDiscAlbum, "Go to Album"),
             move |_, cx| {
                 entity.update(cx, |app, cx| {
                     app.now_playing = false;
@@ -627,7 +624,7 @@ fn now_playing_track_menu(entity: gpui::Entity<MusicShell>, track: TrackResponse
     theme::style_fullscreen_context_menu(menu)
 }
 
-fn menu_label(icon: LucideIcons, label: &'static str) -> Div {
+fn menu_label(icon: GpuiIcons, label: &'static str) -> Div {
     div()
         .flex()
         .items_center()

@@ -1,5 +1,6 @@
 use gpui::{FontWeight, SharedString, WindowControlArea, div, prelude::*, px, rgba, svg};
-use uic::{assets::LucideIcons, components::input::Input};
+use gpui_icons::GpuiIcons;
+use uic::components::input::Input;
 
 use crate::{
     app::music_shell::MusicShell,
@@ -52,7 +53,7 @@ pub fn render(
                         .child(search_input(
                             Input::new(&app.search_input).prefix(
                                 svg()
-                                    .path(LucideIcons::Search)
+                                    .path(GpuiIcons::LucideSearch)
                                     .size(px(14.))
                                     .text_color(rgba(0xd4d4dcc4)),
                             ),
@@ -104,7 +105,7 @@ pub fn render(
                         .on_click(cx.listener(|app, _, _, cx| app.toggle_songs_sort(cx)))
                         .child(
                             svg()
-                                .path(LucideIcons::ListFilter)
+                                .path(GpuiIcons::LucideListFilter)
                                 .size(px(15.))
                                 .text_color(rgba(0xd3d1dab8)),
                         ),
@@ -118,7 +119,7 @@ pub fn render(
                         .child(search_input(
                             Input::new(&app.songs_search_input).prefix(
                                 svg()
-                                    .path(LucideIcons::Search)
+                                    .path(GpuiIcons::LucideSearch)
                                     .size(px(14.))
                                     .text_color(rgba(0xd4d4dcc4)),
                             ),
@@ -145,7 +146,7 @@ pub fn render(
                         .on_click(cx.listener(|app, _, _, cx| app.toggle_playlist_sort(cx)))
                         .child(
                             svg()
-                                .path(LucideIcons::ListFilter)
+                                .path(GpuiIcons::LucideListFilter)
                                 .size(px(15.))
                                 .text_color(rgba(0xd3d1dab8)),
                         ),
@@ -159,7 +160,7 @@ pub fn render(
                         .child(search_input(
                             Input::new(&app.playlist_search_input).prefix(
                                 svg()
-                                    .path(LucideIcons::Search)
+                                    .path(GpuiIcons::LucideSearch)
                                     .size(px(14.))
                                     .text_color(rgba(0xd4d4dcc4)),
                             ),
@@ -200,7 +201,7 @@ pub fn render(
                                 }))
                                 .child(
                                     svg()
-                                        .path(LucideIcons::CloudUpload)
+                                        .path(GpuiIcons::LucideCloudUpload)
                                         .size(px(18.))
                                         .text_color(rgba(0xe8e6eed4)),
                                 ),

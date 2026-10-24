@@ -1,7 +1,7 @@
 #[cfg(target_os = "linux")]
 use gpui::MouseButton;
 use gpui::{AnyElement, App, Div, Window, WindowControlArea, div, prelude::*, px, rgb, rgba, svg};
-use uic::assets::LucideIcons;
+use gpui_icons::GpuiIcons;
 
 use crate::{
     resources::RomusIcons,
@@ -79,7 +79,7 @@ pub fn render(window: &Window) -> Div {
                 (
                     "window-minimize",
                     WindowControlArea::Min,
-                    LucideIcons::Minus.into(),
+                    GpuiIcons::LucideMinus.into(),
                 ),
                 (
                     "window-maximize",
@@ -93,7 +93,7 @@ pub fn render(window: &Window) -> Div {
                 (
                     "window-close",
                     WindowControlArea::Close,
-                    LucideIcons::X.into(),
+                    GpuiIcons::LucideX.into(),
                 ),
             ]
             .map(|(id, area, icon): (_, _, gpui::SharedString)| {

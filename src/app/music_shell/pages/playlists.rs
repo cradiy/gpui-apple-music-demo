@@ -1,3 +1,4 @@
+use gpui_icons::GpuiIcons;
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 use gpui::{
@@ -5,10 +6,7 @@ use gpui::{
     Render, SharedString, Task, div, prelude::*, px, rgba, svg,
 };
 use gpui_tokio::Tokio;
-use uic::{
-    assets::LucideIcons,
-    components::context_menu::{self, ContextMenu, ContextMenuExt, ContextMenuItem},
-};
+use uic::components::context_menu::{self, ContextMenu, ContextMenuExt, ContextMenuItem};
 
 use super::ContentShell;
 use crate::ui::components::feedback as toast;
@@ -357,7 +355,7 @@ impl PlaylistPage {
         theme::style_context_menu(
             ContextMenu::new()
                 .action_with(
-                    |_, _| menu_label(LucideIcons::ListPlus, crate::ui::strings::play_next()),
+                    |_, _| menu_label(GpuiIcons::LucideListPlus, crate::ui::strings::play_next()),
                     {
                         let entity = remove_entity.clone();
                         let track = copy_track.clone();
@@ -369,7 +367,7 @@ impl PlaylistPage {
                     },
                 )
                 .action_with(
-                    |_, _| menu_label(LucideIcons::ListEnd, crate::ui::strings::add_to_queue()),
+                    |_, _| menu_label(GpuiIcons::LucideListEnd, crate::ui::strings::add_to_queue()),
                     {
                         let entity = remove_entity.clone();
                         let track = copy_track.clone();
@@ -382,7 +380,7 @@ impl PlaylistPage {
                 )
                 .separator()
                 .action_with(
-                    |_, _| menu_label(LucideIcons::Copy, "Copy"),
+                    |_, _| menu_label(GpuiIcons::LucideCopy, "Copy"),
                     move |_, cx| {
                         cx.write_to_clipboard(ClipboardItem::new_string(song_clipboard_text(
                             &copy_track,
@@ -393,7 +391,7 @@ impl PlaylistPage {
                 .separator()
                 .item(
                     ContextMenuItem::action_with(
-                        |_, _| menu_label(LucideIcons::ListMinus, "Remove from Playlist"),
+                        |_, _| menu_label(GpuiIcons::LucideListMinus, "Remove from Playlist"),
                         move |_, cx| {
                             remove_entity.update(cx, |page, cx| {
                                 page.remove_track(remove_track_id.clone(), cx)
@@ -606,7 +604,7 @@ fn playlist_header(
                         ))
                         .child(play_context_button(
                             "playlist-shuffle",
-                            LucideIcons::Shuffle,
+                            GpuiIcons::LucideShuffle,
                             "Shuffle",
                             tracks.to_vec(),
                             true,
@@ -670,7 +668,7 @@ fn playlist_more_button(playlist: PlaylistResponse, sidebar: Entity<Sidebar>) ->
         .context_menu(move |_, _| sidebar::playlist_manage_menu(sidebar.clone(), playlist.clone()))
         .child(
             svg()
-                .path(LucideIcons::EllipsisVertical)
+                .path(GpuiIcons::LucideEllipsisVertical)
                 .size(px(16.))
                 .text_color(rgba(0xff5576d0)),
         )
@@ -734,7 +732,7 @@ fn playlist_card(
         )
 }
 
-fn menu_label(icon: LucideIcons, label: &'static str) -> impl IntoElement {
+fn menu_label(icon: GpuiIcons, label: &'static str) -> impl IntoElement {
     div()
         .flex()
         .items_center()

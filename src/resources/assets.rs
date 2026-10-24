@@ -1,7 +1,7 @@
 use gpui::{AssetSource, Result, SharedString};
+use gpui_icons::IconAssets;
 use rust_embed::RustEmbed;
 use std::borrow::Cow;
-use uic::assets::LucideAssets;
 
 #[derive(RustEmbed)]
 #[folder = "assets"]
@@ -29,14 +29,14 @@ impl AssetSource for AppAssets {
         if let Some(file) = Self::get(path) {
             Ok(Some(file.data))
         } else {
-            LucideAssets::new().load(path)
+            IconAssets::new().load(path)
         }
     }
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
         Ok(Self::iter()
             .filter_map(|item| item.starts_with(path).then(|| item.into()))
-            .chain(LucideAssets::new().list(path)?)
+            .chain(IconAssets::new().list(path)?)
             .collect())
     }
 }

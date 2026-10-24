@@ -1,3 +1,4 @@
+use gpui_icons::GpuiIcons;
 use std::time::Duration;
 
 use gpui::{
@@ -5,9 +6,8 @@ use gpui::{
     prelude::*, px, rgb, rgba, svg,
 };
 
-use uic::{
-    assets::LucideIcons,
-    components::slider::{Slider, SliderAppearance, SliderThumbVisibility, SliderTooltipPlacement},
+use uic::components::slider::{
+    Slider, SliderAppearance, SliderThumbVisibility, SliderTooltipPlacement,
 };
 
 use crate::{
@@ -21,7 +21,7 @@ use crate::{
     utils::format_time,
 };
 
-fn mode_button(id: &'static str, icon: LucideIcons, active: bool) -> Stateful<Div> {
+fn mode_button(id: &'static str, icon: GpuiIcons, active: bool) -> Stateful<Div> {
     div()
         .id(id)
         .relative()
@@ -120,7 +120,7 @@ pub fn render(
                 .gap_2()
                 .when(!compact, |this| {
                     this.child(
-                        mode_button("shuffle", LucideIcons::Shuffle, shuffle).on_click(
+                        mode_button("shuffle", GpuiIcons::LucideShuffle, shuffle).on_click(
                             cx.listener(|app, _, _, cx| {
                                 app.playback
                                     .update(cx, |playback, cx| playback.toggle_shuffle(cx));
@@ -169,7 +169,7 @@ pub fn render(
                     ),
                 )
                 .child(
-                    mode_button("repeat", LucideIcons::Repeat, repeat != RepeatMode::Off)
+                    mode_button("repeat", GpuiIcons::LucideRepeat, repeat != RepeatMode::Off)
                         .on_click(cx.listener(|app, _, _, cx| {
                             app.playback
                                 .update(cx, |playback, cx| playback.cycle_repeat(cx));
@@ -253,7 +253,7 @@ pub fn render(
                                                     })
                                                     .child(
                                                         svg()
-                                                            .path(LucideIcons::Maximize2)
+                                                            .path(GpuiIcons::LucideMaximize2)
                                                             .size(px(18.))
                                                             .text_color(rgba(0xffffffff)),
                                                     ),
@@ -383,7 +383,7 @@ pub fn render(
                             }))
                             .child(
                                 svg()
-                                    .path(LucideIcons::PictureInPicture2)
+                                    .path(GpuiIcons::LucidePictureInPicture2)
                                     .size_5()
                                     .text_color(rgba(0xd5d5ddeb)),
                             ),
@@ -406,7 +406,7 @@ pub fn render(
                         .on_click(cx.listener(|app, _, _, cx| {
                             app.toggle_playback_panel(PlaybackPanel::InlineLyrics, cx);
                         }))
-                        .child(svg().path(LucideIcons::MicVocal).size_5().text_color(
+                        .child(svg().path(GpuiIcons::LucideMicVocal).size_5().text_color(
                             if app.playback_panel == PlaybackPanel::InlineLyrics {
                                 rgb(ACCENT)
                             } else {
@@ -417,7 +417,7 @@ pub fn render(
                 .child(
                     mode_button(
                         "queue",
-                        LucideIcons::ListMusic,
+                        GpuiIcons::LucideListMusic,
                         app.playback_panel == PlaybackPanel::Queue,
                     )
                     .on_click(cx.listener(|app, _, _, cx| {
@@ -429,9 +429,9 @@ pub fn render(
                         icon_button(
                             "volume",
                             if muted {
-                                LucideIcons::VolumeX
+                                GpuiIcons::LucideVolumeX
                             } else {
-                                LucideIcons::Volume2
+                                GpuiIcons::LucideVolume2
                             },
                             true,
                         )
@@ -510,7 +510,7 @@ pub fn render_now_playing(
                 .child(
                     now_playing_icon_button(
                         "now-playing-shuffle",
-                        LucideIcons::Shuffle,
+                        GpuiIcons::LucideShuffle,
                         23.,
                         true,
                         shuffle,
@@ -577,7 +577,7 @@ pub fn render_now_playing(
                 .child(
                     now_playing_icon_button(
                         "now-playing-repeat",
-                        LucideIcons::Repeat,
+                        GpuiIcons::LucideRepeat,
                         23.,
                         true,
                         repeat != RepeatMode::Off,

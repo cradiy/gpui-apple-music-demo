@@ -17,14 +17,20 @@ async-channel = "2.5"
 dirs = "7"
 flexi_logger = { version = "0.31", features = ["colors"] }
 
-gpui = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "077416946b9417dd67fa707be34f761621f23418" }
-gpui_effects = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "077416946b9417dd67fa707be34f761621f23418" }
-gpui_tokio = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "077416946b9417dd67fa707be34f761621f23418" }
-uic = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "077416946b9417dd67fa707be34f761621f23418" }
-gpui_media = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "077416946b9417dd67fa707be34f761621f23418", default-features = false, features = [
+gpui = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "259806cdfaf8bcd58e498cd0b9195860edd69351" }
+gpui_effects = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "259806cdfaf8bcd58e498cd0b9195860edd69351" }
+gpui_icons = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "259806cdfaf8bcd58e498cd0b9195860edd69351", features = [
+  "lucide-editing",
+  "lucide-files",
+  "lucide-media",
+  "lucide-misc",
+] }
+gpui_tokio = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "259806cdfaf8bcd58e498cd0b9195860edd69351" }
+uic = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "259806cdfaf8bcd58e498cd0b9195860edd69351" }
+gpui_media = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "259806cdfaf8bcd58e498cd0b9195860edd69351", default-features = false, features = [
   "audio",
 ] }
-gpui_platform = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "077416946b9417dd67fa707be34f761621f23418", features = [
+gpui_platform = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "259806cdfaf8bcd58e498cd0b9195860edd69351", features = [
   "font-kit",
   "wayland",
 ] }
@@ -35,7 +41,7 @@ symphonia = { version = "0.6.0", default-features = false, features = [
   "all-meta",
   "all-formats",
 ] }
-rust-embed = "8.12.0"
+rust-embed = { version = "8.12.0", features = ["include-exclude"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.53.1", features = ["fs", "io-util", "macros", "sync"] }
@@ -71,5 +77,5 @@ smol_str = { opt-level = 3 }
 zbus = "5.19"
 
 [target.'cfg(target_os = "android")'.dependencies]
-gpui_media = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "077416946b9417dd67fa707be34f761621f23418", default-features = false, features = ["video"] }
-gpui_media_backend = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "077416946b9417dd67fa707be34f761621f23418", default-features = false }
+gpui_media = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "259806cdfaf8bcd58e498cd0b9195860edd69351", default-features = false, features = ["video"] }
+gpui_media_backend = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "259806cdfaf8bcd58e498cd0b9195860edd69351", default-features = false }

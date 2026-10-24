@@ -1,3 +1,4 @@
+use gpui_icons::GpuiIcons;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -10,13 +11,10 @@ use gpui::{
 };
 use gpui_effects::FrostedGlassAppearance;
 use gpui_tokio::Tokio;
-use uic::{
-    assets::LucideIcons,
-    components::{
-        context_menu::{ContextMenu, ContextMenuExt, ContextMenuItem},
-        input::{Input, InputAppearance, InputEvent, TextInput},
-        modal::{self, Modal},
-    },
+use uic::components::{
+    context_menu::{ContextMenu, ContextMenuExt, ContextMenuItem},
+    input::{Input, InputAppearance, InputEvent, TextInput},
+    modal::{self, Modal},
 };
 use uuid::Uuid;
 
@@ -293,7 +291,7 @@ impl Sidebar {
                                                     .justify_center()
                                                     .child(
                                                         svg()
-                                                            .path(LucideIcons::Plus)
+                                                            .path(GpuiIcons::LucidePlus)
                                                             .size(px(22.))
                                                             .text_color(rgba(0xffffffff)),
                                                     ),
@@ -806,7 +804,7 @@ impl gpui::Render for Sidebar {
                     .child(nav_item(
                         "nav-search",
                         "Search",
-                        LucideIcons::Search,
+                        GpuiIcons::LucideSearch,
                         Page::Search,
                         self.selected_page == Page::Search,
                         cx,
@@ -814,7 +812,7 @@ impl gpui::Render for Sidebar {
                     .child(nav_item(
                         "nav-home",
                         "Home",
-                        LucideIcons::House,
+                        GpuiIcons::LucideHouse,
                         Page::Home,
                         self.selected_page == Page::Home,
                         cx,
@@ -823,7 +821,7 @@ impl gpui::Render for Sidebar {
                     .child(nav_item(
                         "nav-artists",
                         "Artists",
-                        LucideIcons::MicVocal,
+                        GpuiIcons::LucideMicVocal,
                         Page::Artists,
                         matches!(self.selected_page, Page::Artists | Page::Artist(_)),
                         cx,
@@ -831,7 +829,7 @@ impl gpui::Render for Sidebar {
                     .child(nav_item(
                         "nav-albums",
                         "Albums",
-                        LucideIcons::DiscAlbum,
+                        GpuiIcons::LucideDiscAlbum,
                         Page::Albums,
                         matches!(self.selected_page, Page::Albums | Page::Album(_)),
                         cx,
@@ -839,7 +837,7 @@ impl gpui::Render for Sidebar {
                     .child(nav_item(
                         "nav-songs",
                         "Songs",
-                        LucideIcons::Music2,
+                        GpuiIcons::LucideMusic2,
                         Page::Songs,
                         self.selected_page == Page::Songs,
                         cx,
@@ -853,7 +851,7 @@ impl gpui::Render for Sidebar {
                                 .gap(px(8.))
                                 .child(
                                     svg()
-                                        .path(LucideIcons::Plus)
+                                        .path(GpuiIcons::LucidePlus)
                                         .id("add-playlists")
                                         .on_click(cx.listener(
                                             |sidebar, event: &ClickEvent, window, cx| {
@@ -895,9 +893,9 @@ impl gpui::Render for Sidebar {
                                         .child(
                                             svg()
                                                 .path(if self.playlists_expanded {
-                                                    LucideIcons::ChevronDown
+                                                    GpuiIcons::LucideChevronDown
                                                 } else {
-                                                    LucideIcons::ChevronRight
+                                                    GpuiIcons::LucideChevronRight
                                                 })
                                                 .size(px(14.))
                                                 .text_color(rgba(0xa5a7b5c8)),
@@ -910,7 +908,7 @@ impl gpui::Render for Sidebar {
                             .child(nav_item(
                                 "all-playlist",
                                 "All Playlists",
-                                LucideIcons::LayoutGrid,
+                                GpuiIcons::LucideLayoutGrid,
                                 Page::PlayLists(crate::domain::PlayList::All),
                                 self.selected_page == Page::PlayLists(crate::domain::PlayList::All),
                                 cx,
@@ -918,7 +916,7 @@ impl gpui::Render for Sidebar {
                             .child(nav_item(
                                 "playlist-like",
                                 "Like",
-                                LucideIcons::Heart,
+                                GpuiIcons::LucideHeart,
                                 Page::PlayLists(crate::domain::PlayList::Like),
                                 self.selected_page
                                     == Page::PlayLists(crate::domain::PlayList::Like),
@@ -945,7 +943,7 @@ pub fn playlist_manage_menu(sidebar: Entity<Sidebar>, playlist: PlaylistResponse
     theme::style_context_menu(
         ContextMenu::new()
             .action_with(
-                |_, _| playlist_menu_label(LucideIcons::Pencil, "Edit Playlist"),
+                |_, _| playlist_menu_label(GpuiIcons::LucidePencil, "Edit Playlist"),
                 move |window, cx| {
                     edit_sidebar.update(cx, |sidebar, cx| {
                         sidebar.open_edit_playlist(edit_playlist.clone(), window, cx);
@@ -955,7 +953,7 @@ pub fn playlist_manage_menu(sidebar: Entity<Sidebar>, playlist: PlaylistResponse
             .separator()
             .item(
                 ContextMenuItem::action_with(
-                    |_, _| playlist_menu_label(LucideIcons::Trash2, "Delete Playlist"),
+                    |_, _| playlist_menu_label(GpuiIcons::LucideTrash2, "Delete Playlist"),
                     move |window, cx| {
                         delete_sidebar.update(cx, |sidebar, cx| {
                             sidebar.confirm_delete_playlist(delete_playlist.clone(), window, cx);
@@ -967,7 +965,7 @@ pub fn playlist_manage_menu(sidebar: Entity<Sidebar>, playlist: PlaylistResponse
     )
 }
 
-fn playlist_menu_label(icon: LucideIcons, label: &'static str) -> impl IntoElement {
+fn playlist_menu_label(icon: GpuiIcons, label: &'static str) -> impl IntoElement {
     div()
         .flex()
         .items_center()
@@ -1079,7 +1077,7 @@ fn nav_section(label: &'static str) -> Stateful<Div> {
 fn nav_item(
     id: &str,
     label: &str,
-    icon: LucideIcons,
+    icon: GpuiIcons,
     page: Page,
     selected: bool,
     cx: &gpui::Context<Sidebar>,

@@ -1,3 +1,4 @@
+use gpui_icons::GpuiIcons;
 use std::{collections::HashMap, sync::Arc};
 
 use gpui::{
@@ -5,12 +6,9 @@ use gpui::{
     prelude::*, px, rgba, svg,
 };
 use gpui_tokio::Tokio;
-use uic::{
-    assets::LucideIcons,
-    components::{
-        context_menu::{ContextMenu, ContextMenuExt, ContextMenuItem},
-        modal::{self, Modal},
-    },
+use uic::components::{
+    context_menu::{ContextMenu, ContextMenuExt, ContextMenuItem},
+    modal::{self, Modal},
 };
 
 use super::songs;
@@ -663,7 +661,7 @@ fn empty_state(cx: &mut gpui::Context<HomePage>) -> impl IntoElement {
                 .justify_center()
                 .child(
                     svg()
-                        .path(LucideIcons::Music2)
+                        .path(GpuiIcons::LucideMusic2)
                         .size(px(34.))
                         .text_color(rgba(0xe8e6eed0)),
                 ),
@@ -1051,25 +1049,28 @@ fn track_menu(entity: Entity<HomePage>, track: TrackResponse, cx: &gpui::App) ->
     let album_id = track.album_id.clone();
     let mut menu = ContextMenu::new()
         .item(ContextMenuItem::submenu_with(
-            |_, _| menu_label(LucideIcons::ListMusic, "Add to Playlist"),
+            |_, _| menu_label(GpuiIcons::LucideListMusic, "Add to Playlist"),
             add_menu,
         ))
         .separator()
         .action_with(
-            |_, _| menu_label(LucideIcons::BadgeInfo, "Get Info"),
+            |_, _| menu_label(GpuiIcons::LucideBadgeInfo, "Get Info"),
             move |window, cx| songs::show_track_info(info_track.clone(), window, cx),
         )
-        .action_with(move |_, _| menu_label(LucideIcons::Heart, like_label), {
-            let entity = entity.clone();
-            move |_, cx| {
-                entity.update(cx, |page, cx| {
-                    page.set_liked(like_track_id.clone(), should_like, cx);
-                });
-            }
-        })
+        .action_with(
+            move |_, _| menu_label(GpuiIcons::LucideHeart, like_label),
+            {
+                let entity = entity.clone();
+                move |_, cx| {
+                    entity.update(cx, |page, cx| {
+                        page.set_liked(like_track_id.clone(), should_like, cx);
+                    });
+                }
+            },
+        )
         .separator()
         .action_with(
-            |_, _| menu_label(LucideIcons::ListPlus, strings::play_next()),
+            |_, _| menu_label(GpuiIcons::LucideListPlus, strings::play_next()),
             {
                 let entity = entity.clone();
                 move |_, cx| {
@@ -1085,7 +1086,7 @@ fn track_menu(entity: Entity<HomePage>, track: TrackResponse, cx: &gpui::App) ->
             },
         )
         .action_with(
-            |_, _| menu_label(LucideIcons::ListEnd, strings::add_to_queue()),
+            |_, _| menu_label(GpuiIcons::LucideListEnd, strings::add_to_queue()),
             {
                 let entity = entity.clone();
                 move |_, cx| {
@@ -1102,7 +1103,7 @@ fn track_menu(entity: Entity<HomePage>, track: TrackResponse, cx: &gpui::App) ->
         )
         .separator()
         .action_with(
-            |_, _| menu_label(LucideIcons::Copy, "Copy"),
+            |_, _| menu_label(GpuiIcons::LucideCopy, "Copy"),
             move |_, cx| {
                 cx.write_to_clipboard(ClipboardItem::new_string(songs::song_clipboard_text(
                     &copy_track,
@@ -1113,7 +1114,7 @@ fn track_menu(entity: Entity<HomePage>, track: TrackResponse, cx: &gpui::App) ->
     if let Some(artist_id) = artist_id {
         let artist_entity = entity.clone();
         menu = menu.action_with(
-            |_, _| menu_label(LucideIcons::MicVocal, "Go to Artist"),
+            |_, _| menu_label(GpuiIcons::LucideMicVocal, "Go to Artist"),
             move |_, cx| {
                 artist_entity.update(cx, |_, cx| {
                     cx.emit(HomePageEvent::Navigate(Page::Artist(
@@ -1126,7 +1127,7 @@ fn track_menu(entity: Entity<HomePage>, track: TrackResponse, cx: &gpui::App) ->
     if let Some(album_id) = album_id {
         let album_entity = entity.clone();
         menu = menu.action_with(
-            |_, _| menu_label(LucideIcons::DiscAlbum, "Go to Album"),
+            |_, _| menu_label(GpuiIcons::LucideDiscAlbum, "Go to Album"),
             move |_, cx| {
                 album_entity.update(cx, |_, cx| {
                     cx.emit(HomePageEvent::Navigate(Page::Album(
@@ -1139,7 +1140,7 @@ fn track_menu(entity: Entity<HomePage>, track: TrackResponse, cx: &gpui::App) ->
     theme::style_context_menu(
         menu.separator().item(
             ContextMenuItem::action_with(
-                |_, _| menu_label(LucideIcons::Trash2, "Delete from Library"),
+                |_, _| menu_label(GpuiIcons::LucideTrash2, "Delete from Library"),
                 move |window, cx| {
                     confirm_delete(entity.clone(), delete_track.clone(), window, cx);
                 },
@@ -1212,7 +1213,7 @@ fn playlist_action_label(label: String) -> Div {
         .text_size(px(12.))
         .child(
             svg()
-                .path(LucideIcons::Music2)
+                .path(GpuiIcons::LucideMusic2)
                 .size(px(16.))
                 .flex_none()
                 .text_color(rgba(0xe3e1e9d9)),
@@ -1227,7 +1228,7 @@ fn album_menu(entity: Entity<HomePage>, album: AlbumCard) -> ContextMenu {
     let enqueue_album = album.clone();
     let album_id = album.id.clone();
     let mut menu = ContextMenu::new()
-        .action_with(|_, _| menu_label(LucideIcons::Play, "Play Album"), {
+        .action_with(|_, _| menu_label(GpuiIcons::LucidePlay, "Play Album"), {
             let entity = entity.clone();
             move |_, cx| {
                 entity.update(cx, |page, cx| {
@@ -1235,17 +1236,20 @@ fn album_menu(entity: Entity<HomePage>, album: AlbumCard) -> ContextMenu {
                 });
             }
         })
-        .action_with(|_, _| menu_label(LucideIcons::Shuffle, "Shuffle Album"), {
-            let entity = entity.clone();
-            move |_, cx| {
-                entity.update(cx, |page, cx| {
-                    page.perform_album_action(shuffle_album.clone(), QueueAction::Shuffle, cx)
-                });
-            }
-        })
+        .action_with(
+            |_, _| menu_label(GpuiIcons::LucideShuffle, "Shuffle Album"),
+            {
+                let entity = entity.clone();
+                move |_, cx| {
+                    entity.update(cx, |page, cx| {
+                        page.perform_album_action(shuffle_album.clone(), QueueAction::Shuffle, cx)
+                    });
+                }
+            },
+        )
         .separator()
         .action_with(
-            |_, _| menu_label(LucideIcons::ListPlus, strings::play_next()),
+            |_, _| menu_label(GpuiIcons::LucideListPlus, strings::play_next()),
             {
                 let entity = entity.clone();
                 move |_, cx| {
@@ -1256,7 +1260,7 @@ fn album_menu(entity: Entity<HomePage>, album: AlbumCard) -> ContextMenu {
             },
         )
         .action_with(
-            |_, _| menu_label(LucideIcons::ListEnd, strings::add_to_queue()),
+            |_, _| menu_label(GpuiIcons::LucideListEnd, strings::add_to_queue()),
             {
                 let entity = entity.clone();
                 move |_, cx| {
@@ -1268,7 +1272,7 @@ fn album_menu(entity: Entity<HomePage>, album: AlbumCard) -> ContextMenu {
         );
     if let Some(album_id) = album_id {
         menu = menu.separator().action_with(
-            |_, _| menu_label(LucideIcons::DiscAlbum, "Go to Album"),
+            |_, _| menu_label(GpuiIcons::LucideDiscAlbum, "Go to Album"),
             move |_, cx| {
                 entity.update(cx, |_, cx| {
                     cx.emit(HomePageEvent::Navigate(Page::Album(
@@ -1289,7 +1293,7 @@ fn playlist_menu(entity: Entity<HomePage>, playlist: PlaylistResponse) -> Contex
     let page = Page::PlayLists(crate::domain::PlayList::Custom(playlist.id.clone().into()));
     theme::style_context_menu(
         ContextMenu::new()
-            .action_with(|_, _| menu_label(LucideIcons::Play, "Play Playlist"), {
+            .action_with(|_, _| menu_label(GpuiIcons::LucidePlay, "Play Playlist"), {
                 let entity = entity.clone();
                 move |_, cx| {
                     entity.update(cx, |home, cx| {
@@ -1298,7 +1302,7 @@ fn playlist_menu(entity: Entity<HomePage>, playlist: PlaylistResponse) -> Contex
                 }
             })
             .action_with(
-                |_, _| menu_label(LucideIcons::Shuffle, "Shuffle Playlist"),
+                |_, _| menu_label(GpuiIcons::LucideShuffle, "Shuffle Playlist"),
                 {
                     let entity = entity.clone();
                     move |_, cx| {
@@ -1314,7 +1318,7 @@ fn playlist_menu(entity: Entity<HomePage>, playlist: PlaylistResponse) -> Contex
             )
             .separator()
             .action_with(
-                |_, _| menu_label(LucideIcons::ListPlus, strings::play_next()),
+                |_, _| menu_label(GpuiIcons::LucideListPlus, strings::play_next()),
                 {
                     let entity = entity.clone();
                     move |_, cx| {
@@ -1329,7 +1333,7 @@ fn playlist_menu(entity: Entity<HomePage>, playlist: PlaylistResponse) -> Contex
                 },
             )
             .action_with(
-                |_, _| menu_label(LucideIcons::ListEnd, strings::add_to_queue()),
+                |_, _| menu_label(GpuiIcons::LucideListEnd, strings::add_to_queue()),
                 {
                     let entity = entity.clone();
                     move |_, cx| {
@@ -1345,7 +1349,7 @@ fn playlist_menu(entity: Entity<HomePage>, playlist: PlaylistResponse) -> Contex
             )
             .separator()
             .action_with(
-                |_, _| menu_label(LucideIcons::FolderOpen, "Open Playlist"),
+                |_, _| menu_label(GpuiIcons::LucideFolderOpen, "Open Playlist"),
                 move |_, cx| {
                     entity.update(cx, |_, cx| {
                         cx.emit(HomePageEvent::Navigate(page.clone()));
@@ -1397,7 +1401,7 @@ fn confirm_delete(
     );
 }
 
-fn menu_label(icon: LucideIcons, label: &'static str) -> impl IntoElement {
+fn menu_label(icon: GpuiIcons, label: &'static str) -> impl IntoElement {
     div()
         .flex()
         .items_center()

@@ -1,10 +1,8 @@
+use gpui_icons::GpuiIcons;
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 use gpui::{App, Div, FontWeight, Image, MouseButton, Window, div, prelude::*, px, rgba, svg};
-use uic::{
-    assets::LucideIcons,
-    components::context_menu::{self, ContextMenu, ContextMenuExt},
-};
+use uic::components::context_menu::{self, ContextMenu, ContextMenuExt};
 
 use crate::{
     services::api::TrackResponse,
@@ -161,7 +159,7 @@ fn track_row(
                         })
                         .child(
                             svg()
-                                .path(LucideIcons::Ellipsis)
+                                .path(GpuiIcons::LucideEllipsis)
                                 .size(px(14.))
                                 .text_color(rgba(0xb7b5c08f)),
                         ),

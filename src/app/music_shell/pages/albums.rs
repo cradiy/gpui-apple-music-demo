@@ -1,3 +1,4 @@
+use gpui_icons::GpuiIcons;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -10,13 +11,10 @@ use gpui::{
     PathPromptOptions, Render, SharedString, Task, div, img, prelude::*, px, rgba, svg,
 };
 use gpui_tokio::Tokio;
-use uic::{
-    assets::LucideIcons,
-    components::{
-        context_menu::{self, ContextMenu, ContextMenuItem},
-        input::{Input, InputEvent, TextInput},
-        modal::{self, Modal},
-    },
+use uic::components::{
+    context_menu::{self, ContextMenu, ContextMenuItem},
+    input::{Input, InputEvent, TextInput},
+    modal::{self, Modal},
 };
 
 use crate::ui::components::feedback as toast;
@@ -516,7 +514,7 @@ impl AlbumsPage {
                                                     .justify_center()
                                                     .child(
                                                         svg()
-                                                            .path(LucideIcons::Plus)
+                                                            .path(GpuiIcons::LucidePlus)
                                                             .size(px(22.))
                                                             .text_color(rgba(0xffffffff)),
                                                     ),
@@ -818,7 +816,7 @@ impl AlbumsPage {
         theme::style_context_menu(
             ContextMenu::new()
                 .action_with(
-                    |_, _| menu_label(LucideIcons::Pencil, "Edit Album"),
+                    |_, _| menu_label(GpuiIcons::LucidePencil, "Edit Album"),
                     move |window, cx| {
                         edit_entity.update(cx, |page, cx| page.open_edit(window, cx));
                     },
@@ -826,7 +824,7 @@ impl AlbumsPage {
                 .separator()
                 .item(
                     ContextMenuItem::action_with(
-                        |_, _| menu_label(LucideIcons::Trash2, "Delete Album"),
+                        |_, _| menu_label(GpuiIcons::LucideTrash2, "Delete Album"),
                         move |window, cx| {
                             delete_entity.update(cx, |page, cx| page.confirm_delete(window, cx));
                         },
@@ -842,7 +840,7 @@ impl AlbumsPage {
         let artist_id = track.artist_id.clone();
         let mut menu = ContextMenu::new()
             .action_with(
-                |_, _| menu_label(LucideIcons::ListPlus, crate::ui::strings::play_next()),
+                |_, _| menu_label(GpuiIcons::LucideListPlus, crate::ui::strings::play_next()),
                 {
                     let entity = artist_entity.clone();
                     let queued = track.clone();
@@ -854,7 +852,7 @@ impl AlbumsPage {
                 },
             )
             .action_with(
-                |_, _| menu_label(LucideIcons::ListEnd, crate::ui::strings::add_to_queue()),
+                |_, _| menu_label(GpuiIcons::LucideListEnd, crate::ui::strings::add_to_queue()),
                 {
                     let entity = artist_entity.clone();
                     let queued = track.clone();
@@ -867,7 +865,7 @@ impl AlbumsPage {
             )
             .separator()
             .action_with(
-                |_, _| menu_label(LucideIcons::Copy, "Copy"),
+                |_, _| menu_label(GpuiIcons::LucideCopy, "Copy"),
                 move |_, cx| {
                     cx.write_to_clipboard(ClipboardItem::new_string(song_clipboard_text(
                         &copy_track,
@@ -877,7 +875,7 @@ impl AlbumsPage {
             );
         if let Some(artist_id) = artist_id {
             menu = menu.action_with(
-                |_, _| menu_label(LucideIcons::MicVocal, "Go to Artist"),
+                |_, _| menu_label(GpuiIcons::LucideMicVocal, "Go to Artist"),
                 move |_, cx| {
                     artist_entity.update(cx, |_, cx| {
                         cx.emit(AlbumsPageEvent::Navigate(Page::Artist(
@@ -1161,7 +1159,7 @@ fn album_header(
                         ))
                         .child(play_context_button(
                             "album-shuffle",
-                            LucideIcons::Shuffle,
+                            GpuiIcons::LucideShuffle,
                             "Shuffle",
                             tracks,
                             true,
@@ -1227,7 +1225,7 @@ fn more_button(entity: Entity<AlbumsPage>) -> impl IntoElement {
         })
         .child(
             svg()
-                .path(LucideIcons::EllipsisVertical)
+                .path(GpuiIcons::LucideEllipsisVertical)
                 .size(px(16.))
                 .text_color(rgba(0xff5576d0)),
         )
@@ -1322,7 +1320,7 @@ fn load_more(
         .on_click(on_click)
 }
 
-fn menu_label(icon: LucideIcons, label: &'static str) -> impl IntoElement {
+fn menu_label(icon: GpuiIcons, label: &'static str) -> impl IntoElement {
     div()
         .flex()
         .items_center()

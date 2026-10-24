@@ -1,3 +1,4 @@
+use gpui_icons::GpuiIcons;
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 use gpui::{
@@ -5,10 +6,7 @@ use gpui::{
     Task, div, prelude::*, px, rgba, svg,
 };
 use gpui_tokio::Tokio;
-use uic::{
-    assets::LucideIcons,
-    components::context_menu::{ContextMenu, ContextMenuItem},
-};
+use uic::components::context_menu::{ContextMenu, ContextMenuItem};
 
 use crate::ui::components::feedback as toast;
 use crate::{
@@ -243,7 +241,7 @@ impl LikedPage {
         theme::style_context_menu(
             ContextMenu::new()
                 .action_with(
-                    |_, _| menu_label(LucideIcons::ListPlus, crate::ui::strings::play_next()),
+                    |_, _| menu_label(GpuiIcons::LucideListPlus, crate::ui::strings::play_next()),
                     {
                         let entity = unlike_entity.clone();
                         let track = copy_track.clone();
@@ -255,7 +253,7 @@ impl LikedPage {
                     },
                 )
                 .action_with(
-                    |_, _| menu_label(LucideIcons::ListEnd, crate::ui::strings::add_to_queue()),
+                    |_, _| menu_label(GpuiIcons::LucideListEnd, crate::ui::strings::add_to_queue()),
                     {
                         let entity = unlike_entity.clone();
                         let track = copy_track.clone();
@@ -268,7 +266,7 @@ impl LikedPage {
                 )
                 .separator()
                 .action_with(
-                    |_, _| menu_label(LucideIcons::Copy, "Copy"),
+                    |_, _| menu_label(GpuiIcons::LucideCopy, "Copy"),
                     move |_, cx| {
                         cx.write_to_clipboard(ClipboardItem::new_string(song_clipboard_text(
                             &copy_track,
@@ -279,7 +277,7 @@ impl LikedPage {
                 .separator()
                 .item(
                     ContextMenuItem::action_with(
-                        |_, _| menu_label(LucideIcons::Heart, "Unlike"),
+                        |_, _| menu_label(GpuiIcons::LucideHeart, "Unlike"),
                         move |_, cx| {
                             unlike_entity
                                 .update(cx, |page, cx| page.unlike(unlike_track_id.clone(), cx));
@@ -443,7 +441,7 @@ fn liked_header(
                         ))
                         .child(play_context_button(
                             "liked-shuffle",
-                            LucideIcons::Shuffle,
+                            GpuiIcons::LucideShuffle,
                             "Shuffle",
                             tracks,
                             true,
@@ -489,7 +487,7 @@ fn play_context_button(
         .child(label)
 }
 
-fn menu_label(icon: LucideIcons, label: &'static str) -> impl IntoElement {
+fn menu_label(icon: GpuiIcons, label: &'static str) -> impl IntoElement {
     div()
         .flex()
         .items_center()

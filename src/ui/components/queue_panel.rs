@@ -1,3 +1,4 @@
+use gpui_icons::GpuiIcons;
 use std::{cell::Cell, collections::HashMap, rc::Rc, sync::Arc, time::Instant};
 
 use gpui::{
@@ -5,10 +6,7 @@ use gpui::{
     Render, SharedString, Window, canvas, div, prelude::*, px, rgb, rgba, svg,
 };
 use gpui_tokio::Tokio;
-use uic::{
-    assets::LucideIcons,
-    components::context_menu::{self, ContextMenu, ContextMenuExt},
-};
+use uic::components::context_menu::{self, ContextMenu, ContextMenuExt};
 
 use crate::{
     app::music_shell::MusicShell,
@@ -655,7 +653,7 @@ fn queue_row(
                         })
                         .child(
                             svg()
-                                .path(LucideIcons::EllipsisVertical)
+                                .path(GpuiIcons::LucideEllipsisVertical)
                                 .size(px(15.))
                                 .text_color(rgba(0xcac8d2d8)),
                         )
@@ -711,7 +709,7 @@ fn queue_item_menu(
     let remove_entity = entity.clone();
     let mut menu = ContextMenu::new()
         .action_with(
-            |_, _| menu_label(LucideIcons::ListPlus, strings::play_next()),
+            |_, _| menu_label(GpuiIcons::LucideListPlus, strings::play_next()),
             move |_, cx| {
                 play_next_entity.update(cx, |app, cx| {
                     app.playback.update(cx, |playback, cx| {
@@ -721,7 +719,7 @@ fn queue_item_menu(
             },
         )
         .action_with(
-            |_, _| menu_label(LucideIcons::ListEnd, strings::move_to_end()),
+            |_, _| menu_label(GpuiIcons::LucideListEnd, strings::move_to_end()),
             move |_, cx| {
                 end_entity.update(cx, |app, cx| {
                     app.playback.update(cx, |playback, cx| {
@@ -731,7 +729,7 @@ fn queue_item_menu(
             },
         )
         .action_with(
-            |_, _| menu_label(LucideIcons::ListMinus, strings::remove_from_queue()),
+            |_, _| menu_label(GpuiIcons::LucideListMinus, strings::remove_from_queue()),
             move |_, cx| {
                 remove_entity.update(cx, |app, cx| {
                     app.playback.update(cx, |playback, cx| {
@@ -745,7 +743,7 @@ fn queue_item_menu(
         if let Some(album_id) = track.album_id.clone() {
             let album_entity = entity.clone();
             menu = menu.action_with(
-                |_, _| menu_label(LucideIcons::DiscAlbum, "Go to Album"),
+                |_, _| menu_label(GpuiIcons::LucideDiscAlbum, "Go to Album"),
                 move |_, cx| {
                     album_entity.update(cx, |app, cx| {
                         app.navigate(Page::Album(album_id.clone().into()), cx);
@@ -756,7 +754,7 @@ fn queue_item_menu(
         if let Some(artist_id) = track.artist_id.clone() {
             let artist_entity = entity.clone();
             menu = menu.action_with(
-                |_, _| menu_label(LucideIcons::MicVocal, "Go to Artist"),
+                |_, _| menu_label(GpuiIcons::LucideMicVocal, "Go to Artist"),
                 move |_, cx| {
                     artist_entity.update(cx, |app, cx| {
                         app.navigate(Page::Artist(artist_id.clone().into()), cx);
@@ -772,7 +770,7 @@ fn queue_item_menu(
     }
 }
 
-fn menu_label(icon: LucideIcons, label: &'static str) -> impl IntoElement {
+fn menu_label(icon: GpuiIcons, label: &'static str) -> impl IntoElement {
     div()
         .flex()
         .items_center()
