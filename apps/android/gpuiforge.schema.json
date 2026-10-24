@@ -42,6 +42,11 @@
           "type": "string"
         },
         {
+          "const": "audio-routing",
+          "description": "System media route observation and selection, independent of a player. Declare BLUETOOTH_CONNECT and BLUETOOTH_SCAN and request authorization before showing Bluetooth outputs.",
+          "type": "string"
+        },
+        {
           "const": "notifications",
           "description": "General system notifications, action buttons and inline replies. Declare POST_NOTIFICATIONS and request runtime authorization when required by Android.",
           "type": "string"
@@ -179,6 +184,10 @@
           "default": "application",
           "description": "Who applies safe-area and keyboard avoidance in the bundled Android Activity. Defaults to application: the GPUI viewport fills the window and Window::insets() reports occlusion in logical pixels without consumed padding. Use host for automatic avoidance; Rust can use insets.effective() in either mode without double padding. This does not hide system bars. Regenerate managed Android sources with gpuiforge sync after changing it."
         },
+        "logs": {
+          "$ref": "#/$defs/LogConfig",
+          "description": "Android application log defaults. gpuiforge logs follows the installed application's UID without building or launching it. Command-line options override these settings."
+        },
         "management": {
           "$ref": "#/$defs/Management",
           "description": "Native project ownership. Defaults to managed. Use gpuiforge platform eject android to export generated sources before taking manual ownership."
@@ -256,6 +265,11 @@
           "$ref": "#/$defs/SigningMode",
           "default": "auto",
           "description": "Android signing policy: auto, debug, configured or unsigned. Auto uses the development key for debug; release uses the signing object when present, otherwise remains unsigned. Debug also signs release builds with Android's development key without requiring password variables. Configured requires signing credentials and never falls back. --signing overrides this field. Unsigned APKs cannot be installed by run."
+        },
+        "staging-root": {
+          "description": "Android Rust source staging root. Relative paths resolve from the declaring configuration or recipe. Defaults to <Cargo target directory>/android. Prepared projects live under <staging-root>/<native library>/<ABI>. Use a separate root for each application. Does not move compiled artifacts.",
+          "pattern": "\\S",
+          "type": "string"
         },
         "template": {
           "description": "Custom native project template directory. Relative paths resolve from the JSON file declaring this field. Files ending in .tmpl expand {{variables}} and lose that suffix; other files are copied verbatim. Symlinks are rejected. Omit together with recipe to use bundled Android templates.",
@@ -421,6 +435,42 @@
           "type": "string"
         }
       ]
+    },
+    "LogConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "$ref": "#/$defs/LogLevel",
+          "description": "Minimum log priority. Defaults to debug."
+        },
+        "tags": {
+          "default": [],
+          "description": "Exact tags to include. Empty selects all tags. CLI --tag values replace this list. Tags must be nonempty and contain no whitespace, control characters, colons or asterisks.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tail": {
+          "default": 100,
+          "description": "Positive logcat history limit before following, or when dumping. Defaults to 100. Filtering may produce fewer lines.",
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "LogLevel": {
+      "enum": [
+        "verbose",
+        "debug",
+        "info",
+        "warn",
+        "error",
+        "fatal"
+      ],
+      "type": "string"
     },
     "Management": {
       "oneOf": [

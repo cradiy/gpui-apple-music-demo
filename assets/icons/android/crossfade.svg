@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><mask id="center"><rect width="24" height="24" fill="white"/><circle cx="16" cy="12" r="1.9" fill="black"/></mask></defs><circle cx="8" cy="12" r="5.4" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="16" cy="12" r="5.4" fill="currentColor" mask="url(#center)"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <defs>
+    <mask id="center">
+      <rect width="24" height="24" fill="white"/>
+      <circle cx="16" cy="12" r="2.15" fill="black"/>
+    </mask>
+  </defs>
+  <circle cx="8" cy="12" r="5.3" fill="none" stroke="currentColor" stroke-width="2.2"/>
+  <circle cx="16" cy="12" r="6.4" fill="currentColor" mask="url(#center)"/>
+</svg>

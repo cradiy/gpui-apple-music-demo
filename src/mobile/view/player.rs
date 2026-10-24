@@ -45,22 +45,7 @@ impl MobileApp {
                     .aria_label("Previous song")
                     .on_click(cx.listener(|this, _, _, cx| this.skip(-1, cx))),
             )
-            .child(
-                l.button(
-                    "toggle",
-                    164.,
-                    l.bottom(616.),
-                    64.,
-                    64.,
-                    if self.playing(cx) {
-                        "player-pause"
-                    } else {
-                        "player-play"
-                    },
-                )
-                .aria_label("Play or pause")
-                .on_click(cx.listener(|this, _, _, cx| this.toggle(cx))),
-            )
+            .child(self.playback_toggle(l, "toggle", [164., l.bottom(616.), 64., 64.], false, cx))
             .child(
                 l.button("next", 268., l.bottom(616.), 64., 64., "player-next")
                     .aria_label("Next song")
@@ -178,7 +163,7 @@ impl MobileApp {
             .children(
                 [
                     ("Shuffle", "player-shuffle", self.shuffle, true),
-                    ("Repeat", "player-repeat", self.repeat, true),
+                    ("Repeat", "repeat-badge", self.repeat, true),
                     ("Autoplay unavailable", "autoplay", false, false),
                     ("Crossfade unavailable", "crossfade", false, false),
                 ]
@@ -302,10 +287,6 @@ impl MobileApp {
                 px(14. * scale * progress),
             )
         })
-    }
-
-    fn playing_cover(&self, size: f32, radius: f32) -> Div {
-        artwork_cover(self.visible_artwork.clone(), size, radius)
     }
 
     pub(super) fn now_playing(
@@ -513,6 +494,23 @@ impl MobileApp {
                 );
             }
         }
+        let artwork = self.visible_artwork.clone();
+        let cover_size = morph(lerp(art_size, 70.), 36.) * l.s;
+        let cover_radius = morph(8., 6.) * l.s;
+        let paused_scale = if self.playing(cx) { 1. } else { 0.82 };
+        let cover =
+            gpui_effects::animated_number("playback-cover-scale", paused_scale, move |scale| {
+                let scale = 1. - (1. - scale as f32) * (1. - mix) * (1. - collapse);
+                let inset = cover_size * (1. - scale) * 0.5;
+                let size = cover_size * scale;
+                div()
+                    .relative()
+                    .left(px(inset))
+                    .top(px(inset))
+                    .size(px(size))
+                    .child(artwork_cover(artwork, size, cover_radius * scale))
+            })
+            .duration(Duration::from_millis(320));
         let mut header = div()
             .absolute()
             .left_0()
@@ -526,9 +524,7 @@ impl MobileApp {
                     morph(lerp(art_size, 70.), 36.),
                     morph(lerp(art_size, 70.), 36.),
                 )
-                .child(
-                    self.playing_cover(morph(lerp(art_size, 70.), 36.) * l.s, morph(8., 6.) * l.s),
-                )
+                .child(cover)
                 .id("player-cover")
                 .when(
                     (self.show_lyrics || self.show_queue) && collapse == 0.,

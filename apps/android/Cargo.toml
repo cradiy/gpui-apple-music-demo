@@ -6,7 +6,7 @@ license = "MIT"
 publish = false
 
 [dependencies]
-gpui = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "259806cdfaf8bcd58e498cd0b9195860edd69351" }
-gpui_platform = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "259806cdfaf8bcd58e498cd0b9195860edd69351", features = ["wayland"] }
+gpui = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "b586e94ae933dc1fd19901258b3dfd43de047bf3" }
+gpui_platform = { git = "https://github.com/cradiy/gpui-fusion.git", rev = "b586e94ae933dc1fd19901258b3dfd43de047bf3" }
 gpui-apple-music-demo = { path = "../.." }
 log = "0.4"

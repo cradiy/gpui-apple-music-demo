@@ -1,6 +1,7 @@
 mod icons;
 mod library;
 mod motion;
+mod output;
 mod queue;
 #[cfg(target_os = "android")]
 mod system_media;
@@ -109,6 +110,7 @@ pub struct MobileApp {
     queue_current: Option<SharedString>,
     queue_ui: Option<QueueUi>,
     sheet_stack: Vec<Sheet>,
+    output: output::OutputState,
     queue_menu_entry: Option<SharedString>,
     recent: Vec<String>,
     repeat: bool,
@@ -133,7 +135,12 @@ impl MobileApp {
         let timeline_slider = cx.new(|cx| SliderState::new(0., 0. ..=1., cx));
         let volume_slider = cx.new(|cx| SliderState::new(1., 0. ..=1., cx));
         let subscriptions = vec![
-            cx.observe(&modal::layer(cx), |_, _, cx| cx.notify()),
+            cx.observe(&modal::layer(cx), |this: &mut Self, _, cx| {
+                if !modal::is_open(cx) {
+                    this.output.subscription = None;
+                }
+                cx.notify();
+            }),
             cx.subscribe(&search, |_: &mut Self, _, _: &InputEvent, cx| cx.notify()),
             cx.subscribe(
                 &timeline_slider,
@@ -223,6 +230,7 @@ impl MobileApp {
             queue_current: None,
             queue_ui: None,
             sheet_stack: Vec::new(),
+            output: output::OutputState::default(),
             queue_menu_entry: None,
             recent: Vec::new(),
             repeat: false,

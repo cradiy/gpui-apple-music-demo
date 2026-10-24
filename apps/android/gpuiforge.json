@@ -24,10 +24,17 @@
           "program": "{{tool_path}}"
         }
       ],
-      "features": ["files", "media", "background-media"],
+      "features": [
+        "files",
+        "media",
+        "background-media",
+        "audio-routing"
+      ],
       "notification-icon": "assets/ic_media_notification.xml",
       "inset-handling": "application",
       "permissions": [
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN",
         "android.permission.WAKE_LOCK",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"

@@ -1,3 +1,4 @@
+mod output;
 mod player;
 
 use super::*;
@@ -116,6 +117,48 @@ fn time(d: Duration) -> String {
 }
 
 impl MobileApp {
+    fn playback_toggle(
+        &self,
+        l: Layout,
+        id: &'static str,
+        rect: [f32; 4],
+        small: bool,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
+        let playing = self.playing(cx);
+        let symbol = gpui_effects::animated_switch("symbol", playing, move |playing| {
+            let icon = match (*playing, small) {
+                (true, true) => "mini-pause",
+                (false, true) => "mini-play",
+                (true, false) => "player-pause",
+                (false, false) => "player-play",
+            };
+            div()
+                .size_full()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(icons::icon(icon, l.s).current_color(rgb(TEXT)))
+        })
+        .kind(gpui_effects::TransitionKind::BlurFade)
+        .duration(Duration::from_millis(180))
+        .size_full();
+        l.rect(rect[0], rect[1], rect[2], rect[3])
+            .id(id)
+            .active(|style| style.opacity(0.55))
+            .child(symbol)
+            .child(
+                div()
+                    .id("action")
+                    .absolute()
+                    .inset_0()
+                    .cursor_pointer()
+                    .role(Role::Button)
+                    .aria_label(if playing { "Pause" } else { "Play" })
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle(cx))),
+            )
+    }
+
     fn mini(&self, l: Layout, nav: bool, cx: &mut Context<Self>) -> Div {
         if self.page == Page::NowPlaying && self.player_dismiss.active() {
             return div();
@@ -151,21 +194,7 @@ impl MobileApp {
                             this.navigate(Page::NowPlaying, w, cx);
                         })),
                 )
-                .child(
-                    l.button(
-                        "mini-toggle",
-                        246.,
-                        5.,
-                        44.,
-                        48.,
-                        if self.playing(cx) {
-                            "mini-pause"
-                        } else {
-                            "mini-play"
-                        },
-                    )
-                    .on_click(cx.listener(|this, _, _, cx| this.toggle(cx))),
-                )
+                .child(self.playback_toggle(l, "mini-toggle", [246., 5., 44., 48.], true, cx))
                 .child(
                     l.button("mini-next", 294., 5., 44., 48., "mini-next")
                         .on_click(cx.listener(|this, _, _, cx| this.skip(1, cx))),
@@ -746,7 +775,9 @@ impl MobileApp {
                 .relative()
                 .w_full()
                 .h(px(55. * l.s))
-                .when(dragging, |row| row.bg(rgba(0xffffff18)))
+                .when(dragging, |row| {
+                    row.bg(rgba(0xffffff14)).rounded(px(12. * l.s))
+                })
                 .child(
                     l.rect(0., 0., 48., 48.)
                         .child(cover(Some(track), 48. * l.s)),
@@ -757,7 +788,7 @@ impl MobileApp {
                 )
                 .child(
                     l.text(62., 26., 222., 12., TEXT, track.artist.clone())
-                        .opacity(0.55)
+                        .opacity(0.6)
                         .truncate(),
                 )
                 .child(
@@ -769,7 +800,7 @@ impl MobileApp {
                 );
             let row = row
                 .child(
-                    l.rect(302., 12., 26., 28.).opacity(0.3).child(
+                    l.rect(302., 12., 26., 28.).opacity(0.55).child(
                         ReorderHandle::new(
                             &ui.order,
                             entry.key.clone(),
@@ -806,7 +837,10 @@ impl MobileApp {
                         .flex()
                         .items_center()
                         .justify_end()
-                        .bg(rgb(SURFACE))
+                        .bg(rgba(0xffffff12))
+                        .rounded(px(12. * l.s))
+                        .border_1()
+                        .border_color(rgba(0xffffff0c))
                         .opacity(if progress.ready { 1. } else { 0.65 })
                         .child(icons::icon("trash", l.s)),
                 )
@@ -817,6 +851,10 @@ impl MobileApp {
     }
 
     fn open_sheet(&mut self, sheet: Sheet, window: &mut Window, cx: &mut Context<Self>) {
+        if matches!(sheet, Sheet::Output) {
+            self.open_output_panel(window, cx);
+            return;
+        }
         use uic::components::{
             bottom_sheet::BottomSheet,
             modal::{self, Modal, ModalAppearance},
@@ -828,8 +866,14 @@ impl MobileApp {
         }
         self.sheet_stack = vec![sheet.clone()];
         self.queue_menu_entry = None;
+        let frosted = matches!(sheet, Sheet::Song(_));
+        let safe = window.insets().effective();
+        let scale = (window.viewport_size().width - safe.left - safe.right)
+            .as_f32()
+            .min(640.)
+            / 392.;
         let view = cx.entity().downgrade();
-        let sheet: Modal = BottomSheet::new(move |window, cx| {
+        let sheet = BottomSheet::new(move |window, cx| {
             let safe = window.insets().effective();
             let l = Layout {
                 s: (window.viewport_size().width - safe.left - safe.right)
@@ -856,7 +900,17 @@ impl MobileApp {
         .bg(rgb(BACKGROUND))
         .text_color(rgb(TEXT))
         .font_family("Noto Sans CJK SC")
-        .border_0()
+        .border_0();
+        let sheet: Modal = if frosted {
+            sheet
+                .backdrop_blur(px(32. * scale))
+                .bg(rgba(0x30313499))
+                .rounded_t(px(28. * scale))
+                .border_t_1()
+                .border_color(rgba(0xffffff20))
+        } else {
+            sheet
+        }
         .into();
         modal::show(
             sheet.appearance(
@@ -864,7 +918,7 @@ impl MobileApp {
                     .body_padding_x(px(0.))
                     .body_padding_y(px(0.))
                     .section_borders(false)
-                    .backdrop(rgba(0x00000066).into()),
+                    .backdrop(rgba(if frosted { 0x00000030 } else { 0x00000066 }).into()),
             ),
             window,
             cx,
@@ -909,33 +963,7 @@ impl MobileApp {
                     );
             }
             Sheet::Output => {
-                body = body
-                    .child(
-                        l.text(24., 36., 344., 22., TEXT, "Audio Output")
-                            .font_weight(FontWeight::BOLD),
-                    )
-                    .child(
-                        l.rect(28., 104., 28., 28.)
-                            .child(icons::icon("device", l.s)),
-                    )
-                    .child(l.text(70., 104., 270., 16., TEXT, "This phone"))
-                    .child(
-                        l.rect(64., 174., 268., 36.).child(
-                            Slider::new(&self.volume_slider)
-                                .label("Volume")
-                                .appearance(
-                                    SliderAppearance::default()
-                                        .active_track(rgb(TEXT).into())
-                                        .thumb(rgb(TEXT).into())
-                                        .thumb_border(rgb(TEXT).into())
-                                        .focus_ring(rgba(0xffffff00).into())
-                                        .thumb_size(px(10. * l.s))
-                                        .bg(rgb(SURFACE))
-                                        .h(px(4. * l.s)),
-                                )
-                                .size_full(),
-                        ),
-                    );
+                return self.output_panel(l, cx);
             }
             Sheet::Song(id) => {
                 if let Some(t) = self
@@ -951,9 +979,14 @@ impl MobileApp {
                         )
                         .child(
                             l.text(cover_x + 64., 34., 244., 17., TEXT, t.title.clone())
+                                .truncate()
                                 .font_weight(FontWeight::SEMIBOLD),
                         )
-                        .child(l.text(cover_x + 64., 63., 244., 12., SECONDARY, t.artist.clone()));
+                        .child(
+                            l.text(cover_x + 64., 63., 244., 12., TEXT, t.artist.clone())
+                                .text_color(rgba(0xffffff99))
+                                .truncate(),
+                        );
                 }
                 let favorite = self
                     .library
@@ -963,12 +996,14 @@ impl MobileApp {
                 for (y, height) in [(112., 54.), (178., 108.), (298., 108.)] {
                     body = body.child(
                         l.rect(16., y, 360., height)
-                            .bg(rgb(SURFACE))
-                            .rounded(px(12. * l.s)),
+                            .bg(rgba(0xffffff0e))
+                            .border_1()
+                            .border_color(rgba(0xffffff0a))
+                            .rounded(px(16. * l.s)),
                     );
                 }
                 for y in [232., 352.] {
-                    body = body.child(l.rect(72., y, 288., 0.5).bg(rgba(0x9295a226)));
+                    body = body.child(l.rect(72., y, 288., 0.5).bg(rgba(0xffffff16)));
                 }
                 for (i, (label, icon)) in [
                     (
@@ -986,7 +1021,7 @@ impl MobileApp {
                     ("Play Next", "play-next"),
                     ("Add to Queue", "add-queue"),
                     ("Song Info", "info"),
-                    ("Import Lyrics", "lyrics"),
+                    ("Import Lyrics", "player-lyrics"),
                 ]
                 .into_iter()
                 .enumerate()
@@ -995,6 +1030,11 @@ impl MobileApp {
                     body = body.child(
                         l.rect(16., [112., 178., 232., 298., 352.][i], 360., 54.)
                             .id(("song-action", i))
+                            .rounded(px(16. * l.s))
+                            .cursor_pointer()
+                            .role(Role::Button)
+                            .aria_label(label)
+                            .active(|style| style.bg(rgba(0xffffff12)))
                             .on_click(cx.listener(move |this, _, w, cx| {
                                 if i < 3 && this.sheet_stack.len() > 1 {
                                     this.sheet_stack.pop();
@@ -1026,7 +1066,7 @@ impl MobileApp {
                                     .flex()
                                     .items_center()
                                     .justify_center()
-                                    .child(icons::icon(icon, l.s)),
+                                    .child(icons::icon(icon, l.s).current_color(rgb(TEXT))),
                             )
                             .child(l.text(56., 15., 288., 15., TEXT, label)),
                     );
@@ -1036,8 +1076,13 @@ impl MobileApp {
                 body = body.child(
                     l.rect(16., 422., 360., 54.)
                         .id("remove-song")
-                        .rounded(px(12. * l.s))
-                        .bg(rgb(SURFACE))
+                        .rounded(px(16. * l.s))
+                        .bg(rgba(0xffffff0b))
+                        .border_1()
+                        .border_color(rgba(0xffffff0a))
+                        .cursor_pointer()
+                        .role(Role::Button)
+                        .active(|style| style.bg(rgba(0xffffff12)))
                         .child(
                             l.rect(14., 13., 28., 28.)
                                 .flex()
