@@ -55,7 +55,7 @@ pub fn icon(name: &str, scale: f32) -> ColorSvg {
         "volume-low" => ("icons/android/volume-low.svg", 14., 18.),
         "volume-high" => ("icons/android/volume-high.svg", 21., 18.),
         "airplay" => ("icons/android/airplay.svg", 25., 25.),
-        "queue-list" => ("icons/android/queue-list.svg", 24., 24.),
+        "queue-list" => ("icons/android/queue-list.svg", 30., 30.),
         "autoplay" => ("icons/android/autoplay.svg", 24., 24.),
         "crossfade" => ("icons/android/crossfade.svg", 24., 24.),
         "reorder" => ("icons/android/reorder.svg", 20., 20.),

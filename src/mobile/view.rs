@@ -1207,7 +1207,9 @@ impl MobileApp {
             _ => self.browse(page, l, window, cx),
         };
         let weak = cx.entity().downgrade();
-        let drag_height = if self.show_lyrics || self.show_queue {
+        let drag_height = if self.show_queue {
+            l.top(180.) - self.queue_ui.as_ref().map_or(0., |ui| ui.header_offset)
+        } else if self.show_lyrics {
             l.top(180.)
         } else {
             l.bottom(580.)

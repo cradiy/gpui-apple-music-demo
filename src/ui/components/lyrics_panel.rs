@@ -848,8 +848,8 @@ fn smootherstep(value: f32) -> f32 {
 }
 
 fn lyric_blur_radius(distance: usize, large: bool) -> f32 {
-    let step = if large { 0.8 } else { 0.65 };
-    let maximum = if large { 3.2 } else { 2.5 };
+    let step = if large { 1.4 } else { 0.9 };
+    let maximum = if large { 5.6 } else { 3.6 };
     (distance as f32 * step).min(maximum)
 }
 
@@ -857,8 +857,8 @@ fn lyric_visual_target(index: usize, context: &LyricRowContext) -> LyricVisual {
     let distance = index.abs_diff(context.focus);
     let is_active = context.mode == LyricsMode::Synced && context.active == Some(index);
     let blur_radius =
-        (!context.manually_scrolling && context.mode == LyricsMode::Synced && distance > 0)
-            .then(|| lyric_blur_radius(distance, context.large));
+        (!context.manually_scrolling && context.mode == LyricsMode::Synced && !is_active)
+            .then(|| lyric_blur_radius(distance.max(1), context.large) * context.scale);
     let resting_alpha: u32 = if context.mode == LyricsMode::Plain {
         0xf0
     } else {
@@ -956,7 +956,9 @@ fn lyric_row(
             } else {
                 timed_text_units(part)
             };
-            if let Some(units) = units {
+            if let Some(units) = units
+                && context.active == Some(index)
+            {
                 TimedText::new(part.text.clone(), units)
                     .position(context.position)
                     .active_fill(rgb(0xffffff))

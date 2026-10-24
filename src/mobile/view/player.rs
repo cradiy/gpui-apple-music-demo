@@ -118,15 +118,22 @@ impl MobileApp {
             .child(
                 footer_button(l, "queue", 288., "queue-list", self.show_queue)
                     .aria_label("Playing next")
-                    .when(self.repeat, |button| {
+                    .aria_selected(self.show_queue)
+                    .when(self.show_queue, |button| button.bg(rgba(0xedf0edad)))
+                    .when(self.repeat && !self.show_queue, |button| {
                         button.child(
-                            l.rect(27., -9., 20., 20.)
+                            l.rect(28., -8., 18., 18.)
                                 .rounded_full()
-                                .bg(rgba(0xffffff18))
+                                .bg(rgba(0xedf0ed28))
+                                .border_1()
+                                .border_color(rgba(0xffffff12))
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .child(icons::icon("player-repeat", 0.58 * l.s)),
+                                .child(
+                                    icons::icon("player-repeat", 0.58 * l.s)
+                                        .current_color(rgba(0xf5f7f5dd)),
+                                ),
                         )
                     })
                     .on_click(cx.listener(|this, _, _, cx| {
@@ -138,12 +145,38 @@ impl MobileApp {
     }
 
     fn playing_next(&self, l: Layout, cx: &mut Context<Self>) -> Div {
-        let start = l.top(274.);
+        let offset = self.queue_ui.as_ref().map_or(0., |ui| ui.header_offset);
+        let start = l.top(274.) - offset;
         let end = l.bottom(546.) - 8.;
+        let view = cx.entity().downgrade();
         div()
             .absolute()
             .inset_0()
             .size_full()
+            .child(
+                canvas(
+                    |bounds, window, _| window.insert_hitbox(bounds, HitboxBehavior::Normal),
+                    move |_, hitbox, window, _| {
+                        window.on_mouse_event(
+                            move |event: &ScrollWheelEvent, phase, window, cx| {
+                                if phase.capture()
+                                    && hitbox.should_handle_scroll(window)
+                                    && view
+                                        .update(cx, |this, cx| this.scroll_queue(event, l.s, cx))
+                                        .unwrap_or(false)
+                                {
+                                    cx.stop_propagation();
+                                }
+                            },
+                        );
+                    },
+                )
+                .absolute()
+                .left_0()
+                .top(px(l.top(84.) * l.s))
+                .w_full()
+                .h(px((end - l.top(84.)).max(0.) * l.s)),
+            )
             .children(
                 [
                     ("Shuffle", "player-shuffle", self.shuffle, true),
@@ -154,14 +187,17 @@ impl MobileApp {
                 .into_iter()
                 .enumerate()
                 .map(|(index, (label, icon, selected, enabled))| {
-                    l.rect(32. + index as f32 * 85., l.top(178.), 73., 37.)
+                    l.rect(32. + index as f32 * 85., l.top(178.) - offset, 73., 37.)
                         .id(("player-mode", index))
                         .rounded_full()
-                        .bg(rgba(if selected { 0xffffff55 } else { 0xffffff18 }))
+                        .bg(rgba(if selected || !enabled {
+                            0xf1f3f280
+                        } else {
+                            0xe3e7e438
+                        }))
                         .flex()
                         .items_center()
                         .justify_center()
-                        .opacity(if enabled { 1. } else { 0.45 })
                         .aria_label(label)
                         .aria_disabled(!enabled)
                         .when(enabled, |button| {
@@ -178,11 +214,17 @@ impl MobileApp {
                                     }
                                 }))
                         })
-                        .child(icons::icon(icon, l.s))
+                        .child(
+                            icons::icon(icon, l.s).current_color(rgb(if selected || !enabled {
+                                0x4d5450
+                            } else {
+                                0xf7f9f7
+                            })),
+                        )
                 }),
             )
             .child(
-                l.text(32., l.top(235.), 328., 16., TEXT, "Playing Next")
+                l.text(32., l.top(235.) - offset, 328., 16., TEXT, "Playing Next")
                     .font_weight(FontWeight::SEMIBOLD),
             )
             .child(
@@ -408,7 +450,7 @@ impl MobileApp {
                         .bg(rgb(if self.show_translation {
                             0xb9bdb9
                         } else {
-                            0x606965
+                            0x90978e
                         }))
                         .flex()
                         .items_center()
@@ -427,7 +469,7 @@ impl MobileApp {
                             if self.show_translation {
                                 rgba(0x293638ff)
                             } else {
-                                rgba(0xffffffdd)
+                                rgba(0xf7f8f4ff)
                             },
                         ))
                         .on_click(cx.listener(|this, _, _, cx| {
@@ -438,7 +480,12 @@ impl MobileApp {
                 );
             }
         }
-        d = d
+        let mut header = div()
+            .absolute()
+            .left_0()
+            .top_0()
+            .w_full()
+            .h(px(l.h))
             .child(
                 l.rect(
                     morph(lerp((392. - art_size) / 2., 32.), 16.),
@@ -448,6 +495,22 @@ impl MobileApp {
                 )
                 .child(
                     self.playing_cover(morph(lerp(art_size, 70.), 36.) * l.s, morph(8., 6.) * l.s),
+                )
+                .id("player-cover")
+                .when(
+                    (self.show_lyrics || self.show_queue) && collapse == 0.,
+                    |cover| {
+                        cover
+                            .cursor_pointer()
+                            .role(Role::Button)
+                            .aria_label("Show player")
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.show_lyrics = false;
+                                this.show_queue = false;
+                                this.reveal_player_controls(cx);
+                                cx.notify();
+                            }))
+                    },
                 ),
             )
             .child(
@@ -480,7 +543,7 @@ impl MobileApp {
             );
         if let Some((id, favorite)) = &track {
             let id = id.clone();
-            d = d.child(
+            header = header.child(
                 l.button(
                     "favorite",
                     282.,
@@ -495,7 +558,7 @@ impl MobileApp {
             );
         }
         if let Some((id, _)) = track {
-            d = d.child(
+            header = header.child(
                 l.button(
                     "song-menu",
                     324.,
@@ -510,6 +573,19 @@ impl MobileApp {
                     this.open_sheet(Sheet::Song(id.clone()), w, cx)
                 })),
             );
+        }
+        if self.show_queue {
+            let compact = mix * (1. - collapse);
+            let offset = self.queue_ui.as_ref().map_or(0., |ui| ui.header_offset) * compact;
+            let top = l.top(84.) * compact;
+            let height = l.h / l.s + (88. - l.h / l.s) * compact;
+            d = d.child(
+                l.rect(0., top, 392., height)
+                    .overflow_hidden()
+                    .child(header.top(px((-top - offset) * l.s))),
+            );
+        } else {
+            d = d.child(header);
         }
         if collapse > 0. {
             let opacity = ((collapse - 0.55) / 0.45).clamp(0., 1.);

@@ -29,7 +29,10 @@ pub(super) struct QueueRow {
 pub(super) struct QueueUi {
     pub order: Entity<ReorderState>,
     pub rows: HashMap<SharedString, QueueRow>,
+    pub header_offset: f32,
 }
+
+pub(super) const QUEUE_HEADER_TRAVEL: f32 = 86.;
 
 impl MobileApp {
     pub(super) fn upcoming_queue(&self) -> Vec<&QueueEntry> {
@@ -43,6 +46,7 @@ impl MobileApp {
         let ui = self.queue_ui.get_or_insert_with(|| QueueUi {
             order: cx.new(|cx| ReorderState::new(window, cx)),
             rows: HashMap::new(),
+            header_offset: 0.,
         });
         ui.rows
             .retain(|key, _| self.queue.iter().any(|entry| &entry.key == key));
@@ -70,6 +74,35 @@ impl MobileApp {
                 },
             );
         }
+    }
+
+    pub(super) fn scroll_queue(
+        &mut self,
+        event: &ScrollWheelEvent,
+        scale: f32,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let delta = event.delta.pixel_delta(px(28. * scale));
+        if delta.y == px(0.) || delta.x.abs() > delta.y.abs() {
+            return false;
+        }
+        let Some(ui) = &mut self.queue_ui else {
+            return false;
+        };
+        if ui.order.read(cx).dragged_item().is_some() {
+            return false;
+        }
+        let scroll = ui.order.read(cx).scroll_handle();
+        let old = scroll.offset();
+        let position = (ui.header_offset - old.y.as_f32() / scale - delta.y.as_f32() / scale)
+            .clamp(
+                0.,
+                QUEUE_HEADER_TRAVEL + scroll.max_offset().y.as_f32() / scale,
+            );
+        ui.header_offset = position.min(QUEUE_HEADER_TRAVEL);
+        scroll.set_offset(point(old.x, px(-(position - ui.header_offset) * scale)));
+        cx.notify();
+        true
     }
 
     pub(super) fn dismiss_queue_entry(&mut self, key: &SharedString, cx: &mut Context<Self>) {
