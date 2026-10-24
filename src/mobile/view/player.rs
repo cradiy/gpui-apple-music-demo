@@ -122,16 +122,14 @@ impl MobileApp {
                     .when(self.show_queue, |button| button.bg(rgba(0xedf0edad)))
                     .when(self.repeat && !self.show_queue, |button| {
                         button.child(
-                            l.rect(28., -8., 18., 18.)
+                            l.rect(27., -9., 20., 20.)
                                 .rounded_full()
                                 .bg(rgba(0xedf0ed28))
-                                .border_1()
-                                .border_color(rgba(0xffffff12))
                                 .flex()
                                 .items_center()
                                 .justify_center()
                                 .child(
-                                    icons::icon("player-repeat", 0.58 * l.s)
+                                    icons::icon("repeat-badge", 0.72 * l.s)
                                         .current_color(rgba(0xf5f7f5dd)),
                                 ),
                         )
@@ -317,9 +315,10 @@ impl MobileApp {
         cx: &mut Context<Self>,
     ) -> Div {
         self.update_controls_idle(window, cx);
-        let idle = self
-            .controls_motion
-            .sample(f32::from(self.controls_hidden), window);
+        let controls_position = self.controls_motion.sample(self.controls_hidden, window);
+        let idle = controls_position.clamp(0., 1.);
+        let controls_y = (l.h / l.s - l.bottom(490.) + 24.) * controls_position;
+        let controls_opacity = ((1. - idle) * 3.).min(1.);
         let collapse = self
             .player_dismiss
             .progress(window.viewport_size().height.as_f32());
@@ -358,8 +357,12 @@ impl MobileApp {
                     this.navigate(this.return_page, w, cx);
                 })),
         );
-        if idle < 0.999 {
-            d = d.child(self.controls(l, cx).opacity(full_opacity * (1. - idle)));
+        if controls_position < 1. {
+            d = d.child(
+                self.controls(l, cx)
+                    .top(px(controls_y * l.s))
+                    .opacity(full_opacity * controls_opacity),
+            );
         }
         if self.show_queue {
             d = d.child(self.playing_next(l, cx).opacity(mix * full_opacity));
@@ -402,11 +405,15 @@ impl MobileApp {
                 let seek: lyrics_panel::LyricsSeek = Rc::new(move |position, cx| {
                     let _ = entity.update(cx, |this, cx| this.seek_to(position, cx));
                 });
+                let start = l.top(180.);
+                let end = l.bottom(530.) + (l.bottom(810.) - l.bottom(530.)) * idle;
+                let height = (end - start).max(100.);
                 let lyrics = lyrics_panel::render_mobile(
                     &playback,
                     &mut self.lyric_state,
                     seek,
                     392. * l.s,
+                    height * l.s,
                     self.show_translation,
                     window,
                 );
@@ -416,13 +423,39 @@ impl MobileApp {
                 {
                     window.request_animation_frame();
                 }
-                let start = l.top(180.);
-                let end = l.bottom(530.) + (l.bottom(810.) - l.bottom(530.)) * idle;
+                let view = cx.entity().downgrade();
                 d = d.child(faded_lyrics(
-                    l.rect(0., start, 392., (end - start).max(100.))
+                    l.rect(0., start, 392., height)
                         .id("player-lyrics-viewport")
                         .overflow_hidden()
                         .opacity(mix * full_opacity)
+                        .child(
+                            canvas(
+                                |bounds, window, _| {
+                                    window.insert_hitbox(bounds, HitboxBehavior::Normal)
+                                },
+                                move |_, hitbox, window, _| {
+                                    window.on_mouse_event(
+                                        move |event: &TouchEvent, phase, window, cx| {
+                                            if phase.capture() {
+                                                let _ = view.update(cx, |this, cx| {
+                                                    let inside = hitbox.is_hovered(window);
+                                                    this.touch_player_controls(event, inside, cx);
+                                                    if this
+                                                        .lyric_state
+                                                        .handle_mobile_touch(event, inside)
+                                                    {
+                                                        cx.notify();
+                                                    }
+                                                });
+                                            }
+                                        },
+                                    );
+                                },
+                            )
+                            .absolute()
+                            .inset_0(),
+                        )
                         .child(lyrics)
                         .on_click(cx.listener(|this, event: &ClickEvent, _, cx| {
                             if event.click_count() == 2 {
@@ -435,7 +468,7 @@ impl MobileApp {
                     l.s,
                 ));
             }
-            if idle < 0.999
+            if controls_position < 1.
                 && self.lyrics.lines.iter().any(|line| {
                     line.translation
                         .as_ref()
@@ -443,7 +476,7 @@ impl MobileApp {
                 })
             {
                 d = d.child(
-                    l.rect(32., l.bottom(490.), 38., 38.)
+                    l.rect(32., l.bottom(490.) + controls_y, 38., 38.)
                         .id("lyrics-translation")
                         .occlude()
                         .rounded_full()
@@ -455,7 +488,7 @@ impl MobileApp {
                         .flex()
                         .items_center()
                         .justify_center()
-                        .opacity(mix * full_opacity * (1. - idle))
+                        .opacity(mix * full_opacity * controls_opacity)
                         .cursor_pointer()
                         .role(Role::Button)
                         .aria_selected(self.show_translation)

@@ -6,7 +6,7 @@ use std::{
 };
 
 use gpui::{
-    Animation, AnimationExt, AnyElement, Entity, FontWeight, Image, ImageFormat, ScrollHandle,
+    Animation, AnimationExt, AnyElement, Div, Entity, FontWeight, Image, ImageFormat, ScrollHandle,
     SharedString, div, point, prelude::*, px, relative, rgb, rgba,
 };
 use gpui_effects::{
@@ -29,9 +29,28 @@ pub struct LyricsPanelState {
     clock: LyricsPresentationClock,
     glow_started_at: Option<Instant>,
     mobile_layout: Option<MobileLyricsLayout>,
+    mobile_contact: Option<gpui::TouchId>,
+    mobile_viewport_height: f32,
 }
 
 impl LyricsPanelState {
+    pub(crate) fn handle_mobile_touch(&mut self, event: &gpui::TouchEvent, inside: bool) -> bool {
+        match event.phase {
+            gpui::TouchPhase::Started if inside => self.mobile_contact = Some(event.id),
+            gpui::TouchPhase::Ended | gpui::TouchPhase::Cancelled
+                if self.mobile_contact == Some(event.id) =>
+            {
+                self.mobile_contact = None;
+            }
+            gpui::TouchPhase::Moved if self.mobile_contact == Some(event.id) => {}
+            _ => return false,
+        }
+        self.fullscreen.last_user_scroll.set(Some(Instant::now()));
+        self.fullscreen.animation = None;
+        self.fullscreen.stagger_enabled = false;
+        true
+    }
+
     pub(crate) fn mobile_scroll_line(&self) -> Option<usize> {
         let layout = self.mobile_layout.as_ref()?;
         if layout.rows.is_empty() || layout.document_id != self.fullscreen.document_id {
@@ -45,6 +64,7 @@ impl LyricsPanelState {
     }
 
     pub(crate) fn resume_mobile_following(&mut self) {
+        self.mobile_contact = None;
         self.fullscreen.last_user_scroll.set(None);
         self.fullscreen.stagger_enabled = false;
     }
@@ -57,6 +77,10 @@ impl LyricsPanelState {
         };
         let position = Duration::from_secs_f64(self.clock.presented_seconds.max(0.));
         state.animation.is_some()
+            || state
+                .last_user_scroll
+                .get()
+                .is_some_and(|last| last.elapsed() < MANUAL_SCROLL_BLUR_PAUSE)
             || (playback.is_playing()
                 && playback
                     .track
@@ -154,6 +178,7 @@ impl LyricsPresentationClock {
 
 struct LyricsScrollState {
     document_id: usize,
+    mobile_layout_id: usize,
     gap_after: Option<usize>,
     previous_focus: Option<usize>,
     handle: ScrollHandle,
@@ -171,6 +196,7 @@ impl Default for LyricsScrollState {
     fn default() -> Self {
         Self {
             document_id: 0,
+            mobile_layout_id: 0,
             gap_after: None,
             previous_focus: None,
             handle: ScrollHandle::new(),
@@ -192,6 +218,7 @@ impl LyricsScrollState {
             return;
         }
         self.document_id = document_id;
+        self.mobile_layout_id = 0;
         self.gap_after = None;
         self.previous_focus = None;
         self.handle = ScrollHandle::new();
@@ -262,9 +289,11 @@ pub fn render_mobile(
     state: &mut LyricsPanelState,
     seek: LyricsSeek,
     width: f32,
+    height: f32,
     show_translation: bool,
     window: &gpui::Window,
 ) -> AnyElement {
+    state.mobile_viewport_height = height;
     let document_id = Arc::as_ptr(&playback.track.lyrics.lines) as *const LyricLine as usize;
     if state.mobile_layout.as_ref().is_none_or(|layout| {
         layout.document_id != document_id
@@ -366,6 +395,7 @@ fn render_panel(
     mobile_rows: Option<Rc<Vec<MobileLyricRow>>>,
 ) -> AnyElement {
     let mobile = mobile_rows.is_some();
+    let mobile_viewport_height = px(state.mobile_viewport_height);
     let scale = if mobile { width / 392. } else { 1. };
     let lyrics = &playback.track.lyrics;
     let document_id = Arc::as_ptr(&lyrics.lines) as *const LyricLine as usize;
@@ -378,6 +408,7 @@ fn render_panel(
             .min(lyrics.lines.len().saturating_sub(1))
     });
     let gap = lyrics.gap_at(position, LYRIC_GAP_MINIMUM);
+    let dragging = mobile && state.mobile_contact.is_some();
     if fullscreen {
         state.fullscreen.reset_for_document(document_id);
     } else {
@@ -389,6 +420,11 @@ fn render_panel(
         &mut state.inline
     };
     scroll_state.gap_after = gap.map(|gap| gap.previous);
+    let layout_id = mobile_rows
+        .as_ref()
+        .map_or(0, |rows| Rc::as_ptr(rows) as usize);
+    let stable_mobile_layout = scroll_state.mobile_layout_id == layout_id;
+    scroll_state.mobile_layout_id = layout_id;
     let mut rows = Vec::with_capacity(lyrics.lines.len() + usize::from(gap.is_some()) + 2);
     rows.push(
         div()
@@ -405,9 +441,10 @@ fn render_panel(
     );
     let focus_child = 1 + focus + usize::from(gap.is_some_and(|gap| gap.previous < focus));
     let interaction = scroll_state.last_user_scroll.clone();
-    let manually_scrolling = interaction.get().is_some_and(|last| {
-        Instant::now().saturating_duration_since(last) < MANUAL_SCROLL_BLUR_PAUSE
-    });
+    let manually_scrolling = dragging
+        || interaction.get().is_some_and(|last| {
+            Instant::now().saturating_duration_since(last) < MANUAL_SCROLL_BLUR_PAUSE
+        });
     let row_context = LyricRowContext {
         focus,
         active,
@@ -437,7 +474,7 @@ fn render_panel(
             1 + previous + usize::from(gap.is_some_and(|gap| gap.previous < previous))
         }
     });
-    update_scroll_position(scroll_state, focus, focus_child, previous_child);
+    update_scroll_position(scroll_state, focus, focus_child, previous_child, dragging);
     let scroll_offset = scroll_state.handle.offset().y.as_f32();
     if focus_changed {
         scroll_state.stagger_enabled = previous_focus.is_some_and(|previous| previous + 1 == focus);
@@ -466,7 +503,20 @@ fn render_panel(
             0.
         };
         let edge_opacity = if mobile {
-            1.
+            if lyrics.mode != LyricsMode::Synced
+                || !stable_mobile_layout
+                || mobile_row_in_view(
+                    &scroll_state.handle,
+                    rows.len(),
+                    row_offset,
+                    scale,
+                    mobile_viewport_height,
+                )
+            {
+                1.
+            } else {
+                0.
+            }
         } else {
             lyric_edge_opacity(&scroll_state.handle, rows.len(), row_offset)
         };
@@ -511,7 +561,7 @@ fn render_panel(
         div()
             .w_full()
             .h(if mobile {
-                scroll_state.handle.bounds().size.height
+                mobile_viewport_height
             } else {
                 px(if fullscreen { 300. } else { 370. })
             })
@@ -654,12 +704,14 @@ fn update_scroll_position(
     focus: usize,
     focus_child: usize,
     previous_child: Option<usize>,
+    dragging: bool,
 ) {
     let now = Instant::now();
-    if state
-        .last_user_scroll
-        .get()
-        .is_some_and(|last| now.saturating_duration_since(last) < Duration::from_secs(4))
+    if dragging
+        || state
+            .last_user_scroll
+            .get()
+            .is_some_and(|last| now.saturating_duration_since(last) < Duration::from_secs(4))
     {
         state.animation = None;
         state.previous_focus = Some(focus);
@@ -853,12 +905,31 @@ fn lyric_blur_radius(distance: usize, large: bool) -> f32 {
     (distance as f32 * step).min(maximum)
 }
 
+fn mobile_row_in_view(
+    handle: &ScrollHandle,
+    item: usize,
+    row_offset: f32,
+    scale: f32,
+    height: gpui::Pixels,
+) -> bool {
+    let mut viewport = handle.bounds();
+    viewport.size.height = height;
+    if viewport.size.height <= px(0.) {
+        return true;
+    }
+    let Some(row) = handle.bounds_for_item(item) else {
+        return true;
+    };
+    let top = row.top() + handle.offset().y + px(row_offset);
+    let margin = viewport.size.height * 0.5;
+    let margin = margin.max(px(160. * scale));
+    top + row.size.height >= viewport.top() - margin && top <= viewport.bottom() + margin
+}
+
 fn lyric_visual_target(index: usize, context: &LyricRowContext) -> LyricVisual {
     let distance = index.abs_diff(context.focus);
     let is_active = context.mode == LyricsMode::Synced && context.active == Some(index);
-    let blur_radius =
-        (!context.manually_scrolling && context.mode == LyricsMode::Synced && !is_active)
-            .then(|| lyric_blur_radius(distance.max(1), context.large) * context.scale);
+    let blurred = !context.manually_scrolling && context.mode == LyricsMode::Synced && !is_active;
     let resting_alpha: u32 = if context.mode == LyricsMode::Plain {
         0xf0
     } else {
@@ -884,7 +955,26 @@ fn lyric_visual_target(index: usize, context: &LyricRowContext) -> LyricVisual {
         activation: Spring::new(if is_active { 1. } else { 0. }),
         alpha: Spring::new(text_alpha as f32 / 255.),
         resting_alpha: Spring::new(resting_alpha as f32 / 255.),
-        blur: Spring::new(blur_radius.unwrap_or(0.)),
+        blur: Spring::new(if blurred { 1. } else { 0. }),
+    }
+}
+
+fn lyric_text(text: SharedString, radius: f32, amount: f32) -> Div {
+    let layer = |radius| TextBlur::new(text.clone()).radius(px(radius)).w_full();
+    let container = div().relative().w_full();
+    if radius <= 0. || amount <= 0.001 {
+        container.child(layer(0.))
+    } else if amount >= 0.999 {
+        container.child(layer(radius))
+    } else {
+        container.child(layer(0.).opacity(1. - amount)).child(
+            div()
+                .absolute()
+                .left_0()
+                .top_0()
+                .w_full()
+                .child(layer(radius).opacity(amount)),
+        )
     }
 }
 
@@ -912,7 +1002,12 @@ fn lyric_row(
     let text_alpha = (visual.alpha.value.clamp(0., 1.) * 255.).round() as u32;
     let text_color = rgba(0xffffff00 | text_alpha);
     let translation_color = rgba(0xffffff00 | text_alpha.saturating_sub(0x10));
-    let blur_radius = visual.blur.value.max(0.);
+    let blur_radius = if context.active == Some(index) {
+        0.
+    } else {
+        lyric_blur_radius(index.abs_diff(context.focus).max(1), context.large) * context.scale
+    };
+    let blur_amount = visual.blur.value.clamp(0., 1.);
     let font_weight = FontWeight::MEDIUM;
     let normal_text_size = if context.large { 24. } else { 16. } * context.scale;
     let active_text_size = if context.large { 28. } else { 19. } * context.scale;
@@ -974,8 +1069,7 @@ fn lyric_row(
                     ))
                     .into_any_element()
             } else {
-                TextBlur::new(part.text.clone())
-                    .radius(px(blur_radius))
+                lyric_text(part.text.clone(), blur_radius, blur_amount)
                     .w_full()
                     .line_height(relative(1.3))
                     .font_weight(FontWeight::BOLD)
@@ -1024,8 +1118,7 @@ fn lyric_row(
                         .opacity(1. - emphasis)
                         .child(div().w_full().flex().flex_col().children(parts.iter().map(
                             |part| {
-                                TextBlur::new(part.text.clone())
-                                    .radius(px(blur_radius))
+                                lyric_text(part.text.clone(), blur_radius, blur_amount)
                                     .w_full()
                                     .line_height(relative(1.3))
                                     .font_weight(FontWeight::MEDIUM)
@@ -1082,8 +1175,7 @@ fn lyric_row(
                     .flex()
                     .flex_col()
                     .children(translations.iter().map(|text| {
-                        TextBlur::new(text.clone())
-                            .radius(px(blur_radius))
+                        lyric_text(text.clone(), blur_radius, blur_amount)
                             .text_size(px(if context.large { 13.5 } else { 10.5 } * context.scale))
                             .line_height(relative(1.25))
                             .font_weight(font_weight)
@@ -1242,6 +1334,19 @@ fn gray_flow_image() -> Arc<Image> {
 mod mobile_tests {
     use super::*;
     use crate::domain::lyrics::LyricWord;
+
+    #[test]
+    fn paused_scroll_keeps_the_blur_transition_scheduled() {
+        let state = LyricsPanelState::default();
+        let playback = PlaybackState::empty();
+        state.fullscreen.last_user_scroll.set(Some(Instant::now()));
+        assert!(state.is_animating(&playback, true));
+        state
+            .fullscreen
+            .last_user_scroll
+            .set(Some(Instant::now() - Duration::from_secs(1)));
+        assert!(!state.is_animating(&playback, true));
+    }
 
     #[test]
     fn wrapped_word_keeps_utf8_ranges_and_continuous_absolute_timing() {

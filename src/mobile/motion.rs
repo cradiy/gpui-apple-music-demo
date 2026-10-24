@@ -40,6 +40,87 @@ impl ValueMotion {
     }
 }
 
+pub(super) struct ControlsMotion {
+    from: f32,
+    velocity: f32,
+    hidden: bool,
+    started: Instant,
+}
+
+impl ControlsMotion {
+    pub fn new() -> Self {
+        Self {
+            from: 0.,
+            velocity: 0.,
+            hidden: false,
+            started: Instant::now(),
+        }
+    }
+
+    fn evaluate(&self, now: Instant) -> (f32, f32, bool) {
+        let elapsed = now.saturating_duration_since(self.started).as_secs_f32();
+        if self.hidden {
+            let duration = 0.18;
+            let t = (elapsed / duration).min(1.);
+            if t >= 1. {
+                return (1., 0., false);
+            }
+            let distance = 1. - self.from;
+            let value =
+                self.from + distance * t * t + self.velocity * duration * t * (1. - t).powi(2);
+            let velocity =
+                2. * distance * t / duration + self.velocity * (1. - 4. * t + 3. * t * t);
+            (value, velocity, true)
+        } else {
+            let windup = if self.from >= 0.99 && self.velocity.abs() < 0.005 {
+                0.04
+            } else {
+                0.
+            };
+            if elapsed < windup {
+                let t = elapsed / windup;
+                return (
+                    self.from + 0.02 * t * t * (3. - 2. * t),
+                    0.12 * t * (1. - t) / windup,
+                    true,
+                );
+            }
+            let elapsed = elapsed - windup;
+            let rate = 24.;
+            let a = self.from + if windup > 0. { 0.02 } else { 0. };
+            let b = self.velocity + rate * a;
+            let envelope = (-rate * elapsed).exp();
+            let value = (a + b * elapsed) * envelope;
+            let velocity = (b - rate * (a + b * elapsed)) * envelope;
+            if value < 0. || (value.abs() < 0.0005 && velocity.abs() < 0.005) {
+                (0., 0., false)
+            } else {
+                (value, velocity, true)
+            }
+        }
+    }
+
+    fn sample_at(&mut self, hidden: bool, now: Instant) -> (f32, bool) {
+        let (value, velocity, moving) = self.evaluate(now);
+        if self.hidden != hidden {
+            self.from = value;
+            self.velocity = velocity;
+            self.hidden = hidden;
+            self.started = now;
+            return (value, true);
+        }
+        (value, moving)
+    }
+
+    pub fn sample(&mut self, hidden: bool, window: &Window) -> f32 {
+        let (value, moving) = self.sample_at(hidden, Instant::now());
+        if moving {
+            window.request_animation_frame();
+        }
+        value
+    }
+}
+
 pub(super) struct PageMotion {
     pub from: Page,
     pub to: Page,
@@ -182,6 +263,43 @@ impl PlayerDismiss {
 }
 
 #[derive(Default)]
+pub(super) struct ControlsRevealGesture {
+    contact: Option<TouchId>,
+    last_scroll: Option<Instant>,
+}
+
+impl ControlsRevealGesture {
+    fn scroll(&mut self, delta: f32, now: Instant) {
+        if self.contact.is_some() {
+            if delta > 0. {
+                self.last_scroll = Some(now);
+            } else if delta < 0. {
+                self.last_scroll = None;
+            }
+        }
+    }
+
+    fn touch(&mut self, event: &TouchEvent, inside: bool, now: Instant) -> bool {
+        match event.phase {
+            TouchPhase::Started if inside => {
+                self.contact = Some(event.id);
+                self.last_scroll = None;
+            }
+            TouchPhase::Ended if self.contact == Some(event.id) => {
+                let reveal = self.last_scroll.is_some_and(|last| {
+                    now.saturating_duration_since(last) <= Duration::from_millis(350)
+                });
+                *self = Self::default();
+                return reveal;
+            }
+            TouchPhase::Cancelled if self.contact == Some(event.id) => *self = Self::default(),
+            _ => {}
+        }
+        false
+    }
+}
+
+#[derive(Default)]
 pub(super) struct LyricsControlsScroll {
     previous_line: Option<usize>,
     advanced_lines: usize,
@@ -204,6 +322,17 @@ impl LyricsControlsScroll {
 }
 
 impl MobileApp {
+    pub(super) fn touch_player_controls(
+        &mut self,
+        event: &TouchEvent,
+        inside: bool,
+        cx: &mut Context<Self>,
+    ) {
+        if self.controls_reveal.touch(event, inside, Instant::now()) {
+            self.reveal_player_controls(cx);
+        }
+    }
+
     pub(super) fn record_player_activity(&mut self) {
         if !self.controls_hidden {
             self.controls_idle_since = Instant::now();
@@ -225,10 +354,15 @@ impl MobileApp {
     ) {
         if event.touch_phase == TouchPhase::Cancelled {
             self.controls_scroll = LyricsControlsScroll::default();
+            self.controls_reveal = ControlsRevealGesture::default();
             return;
         }
-        if event.delta.pixel_delta(px(1.)).y > px(0.) {
-            self.reveal_player_controls(cx);
+        let delta = event.delta.pixel_delta(px(1.)).y.as_f32();
+        if event.touch_phase == TouchPhase::Moved {
+            self.controls_reveal.scroll(delta, Instant::now());
+        }
+        if delta > 0. {
+            self.controls_scroll = LyricsControlsScroll::default();
         } else if !self.controls_hidden
             && let Some(line) = self.lyric_state.mobile_scroll_line()
             && self.controls_scroll.advance(line, event.touch_phase)
@@ -378,9 +512,109 @@ impl MobileApp {
 
 #[cfg(test)]
 mod tests {
-    use super::{LyricsControlsScroll, PlayerDismiss, PlayerTouch};
-    use gpui::{TouchId, TouchPhase, point, px};
+    use super::{
+        ControlsMotion, ControlsRevealGesture, LyricsControlsScroll, PlayerDismiss, PlayerTouch,
+    };
+    use gpui::{TouchEvent, TouchId, TouchPhase, point, px};
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn controls_reveal_on_fresh_release_not_during_drag_or_fling() {
+        let start = Instant::now();
+        let touch = |phase| TouchEvent {
+            id: TouchId(1),
+            phase,
+            ..Default::default()
+        };
+        let mut gesture = ControlsRevealGesture::default();
+        assert!(!gesture.touch(&touch(TouchPhase::Started), true, start));
+        gesture.scroll(20., start + Duration::from_millis(30));
+        assert!(!gesture.touch(
+            &touch(TouchPhase::Moved),
+            true,
+            start + Duration::from_millis(40)
+        ));
+        assert!(gesture.touch(
+            &touch(TouchPhase::Ended),
+            true,
+            start + Duration::from_millis(60)
+        ));
+        gesture.scroll(20., start + Duration::from_millis(80));
+        assert!(!gesture.touch(
+            &touch(TouchPhase::Ended),
+            true,
+            start + Duration::from_millis(100)
+        ));
+    }
+
+    #[test]
+    fn controls_stay_hidden_after_holding_or_reversing_the_drag() {
+        let start = Instant::now();
+        let touch = |phase| TouchEvent {
+            id: TouchId(1),
+            phase,
+            ..Default::default()
+        };
+        let mut gesture = ControlsRevealGesture::default();
+        gesture.touch(&touch(TouchPhase::Started), true, start);
+        gesture.scroll(20., start + Duration::from_millis(20));
+        assert!(!gesture.touch(
+            &touch(TouchPhase::Ended),
+            true,
+            start + Duration::from_secs(3)
+        ));
+        gesture.touch(&touch(TouchPhase::Started), true, start);
+        gesture.scroll(20., start + Duration::from_millis(20));
+        gesture.scroll(-10., start + Duration::from_millis(40));
+        assert!(!gesture.touch(
+            &touch(TouchPhase::Ended),
+            true,
+            start + Duration::from_millis(60)
+        ));
+    }
+
+    #[test]
+    fn controls_slide_out_quickly_and_wind_up_without_rebounding() {
+        let start = Instant::now();
+        let mut motion = ControlsMotion::new();
+        motion.started = start;
+        motion.sample_at(true, start);
+        let hidden_at = start + Duration::from_millis(180);
+        assert_eq!(motion.sample_at(true, hidden_at), (1., false));
+
+        motion.sample_at(false, hidden_at);
+        let (windup, moving) = motion.sample_at(false, hidden_at + Duration::from_millis(20));
+        assert!(moving && windup > 1. && windup < 1.03);
+        let mut previous = 1.03;
+        for time in (40..=800).step_by(10) {
+            let (value, _) = motion.sample_at(false, hidden_at + Duration::from_millis(time));
+            assert!(value >= 0. && value <= previous);
+            previous = value;
+        }
+        assert_eq!(
+            motion.sample_at(false, hidden_at + Duration::from_secs(1)),
+            (0., false)
+        );
+    }
+
+    #[test]
+    fn controls_reversal_preserves_position_and_velocity() {
+        let start = Instant::now();
+        let mut motion = ControlsMotion::new();
+        motion.started = start;
+        motion.sample_at(true, start);
+        for (time, hidden) in [(90, false), (150, true)] {
+            let now = start + Duration::from_millis(time);
+            let (before, velocity, _) = motion.evaluate(now);
+            let (after, moving) = motion.sample_at(hidden, now);
+            assert!(moving && (after - before).abs() < 0.00001);
+            assert!((motion.evaluate(now).1 - velocity).abs() < 0.00001);
+        }
+        assert_eq!(
+            motion.sample_at(true, start + Duration::from_millis(330)),
+            (1., false)
+        );
+    }
 
     #[test]
     fn lyrics_controls_count_manual_lines_across_gestures() {

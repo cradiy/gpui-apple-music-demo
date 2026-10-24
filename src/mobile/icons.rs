@@ -50,6 +50,7 @@ pub fn icon(name: &str, scale: f32) -> ColorSvg {
         "translation" => ("icons/android/translation.svg", 25., 25.),
         "player-shuffle" => ("icons/android/player-shuffle.svg", 18.25, 20.),
         "player-repeat" => ("icons/android/player-repeat.svg", 18.25, 20.),
+        "repeat-badge" => ("icons/android/repeat-badge.svg", 22., 22.),
         "star" => ("icons/android/star.svg", 24., 24.),
         "star-filled" => ("icons/android/star-filled.svg", 24., 24.),
         "volume-low" => ("icons/android/volume-low.svg", 14., 18.),
