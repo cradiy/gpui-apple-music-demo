@@ -1,4 +1,5 @@
 use super::*;
+use std::cell::Cell;
 
 pub(super) struct ValueMotion {
     from: f32,
@@ -152,6 +153,12 @@ pub(super) struct PlayerDismiss {
     offset: f32,
     touch: Option<PlayerTouch>,
     settle: Option<PlayerSettle>,
+    opening_frame: Option<OpeningFrame>,
+}
+
+struct OpeningFrame {
+    submitted_at: Rc<Cell<Option<Instant>>>,
+    queued: bool,
 }
 
 struct PlayerTouch {
@@ -179,7 +186,22 @@ impl PlayerDismiss {
             ..Self::default()
         };
         state.settle(height, 0., false, Instant::now());
+        state.opening_frame = Some(OpeningFrame {
+            submitted_at: Rc::new(Cell::new(None)),
+            queued: false,
+        });
         state
+    }
+
+    pub fn prepare_opening_frame(&mut self, window: &Window) {
+        let Some(frame) = &mut self.opening_frame else {
+            return;
+        };
+        if !frame.queued {
+            frame.queued = true;
+            let submitted_at = frame.submitted_at.clone();
+            window.on_next_frame(move |_, _| submitted_at.set(Some(Instant::now())));
+        }
     }
 
     pub fn progress(&self, height: f32) -> f32 {
@@ -191,9 +213,17 @@ impl PlayerDismiss {
     }
 
     pub fn sample(&mut self, now: Instant) -> (f32, bool, bool) {
-        let Some(motion) = &self.settle else {
+        let Some(motion) = &mut self.settle else {
+            self.opening_frame = None;
             return (self.offset, false, false);
         };
+        if let Some(frame) = &self.opening_frame {
+            let Some(started) = frame.submitted_at.get() else {
+                return (self.offset, true, false);
+            };
+            motion.started = started;
+            self.opening_frame = None;
+        }
         let t =
             (now.saturating_duration_since(motion.started).as_secs_f32() / motion.duration).min(1.);
         let t2 = t * t;
@@ -218,6 +248,7 @@ impl PlayerDismiss {
         } else {
             0.
         };
+        self.opening_frame = None;
         self.touch = None;
         self.settle = Some(PlayerSettle {
             from: self.offset,
@@ -517,6 +548,43 @@ mod tests {
     };
     use gpui::{TouchEvent, TouchId, TouchPhase, point, px};
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn player_opening_does_not_expire_while_the_first_frame_is_preparing() {
+        let start = Instant::now();
+        let height = 900.;
+        let mut state = PlayerDismiss::opening(height);
+        let (offset, moving, closed) = state.sample(start + Duration::from_secs(2));
+        assert_eq!(offset, height);
+        assert!(moving && !closed);
+
+        let ready = start + Duration::from_secs(3);
+        state
+            .opening_frame
+            .as_ref()
+            .unwrap()
+            .submitted_at
+            .set(Some(ready));
+        assert_eq!(state.sample(ready).0, height);
+        let (offset, moving, closed) = state.sample(ready + Duration::from_millis(100));
+        assert!(offset > 0. && offset < height && moving && !closed);
+        let (offset, moving, closed) = state.sample(ready + Duration::from_millis(350));
+        assert_eq!(offset, 0.);
+        assert!(!moving && !closed);
+
+        let mut dismissed = PlayerDismiss::opening(height);
+        let old_frame = dismissed
+            .opening_frame
+            .as_ref()
+            .unwrap()
+            .submitted_at
+            .clone();
+        dismissed.settle(height, 0., true, ready);
+        old_frame.set(Some(ready + Duration::from_secs(5)));
+        let (offset, moving, closed) = dismissed.sample(ready + Duration::from_secs(1));
+        assert_eq!(offset, height);
+        assert!(!moving && closed);
+    }
 
     #[test]
     fn controls_reveal_on_fresh_release_not_during_drag_or_fling() {

@@ -242,7 +242,10 @@ impl MobileApp {
                     if let Err(error) = player.update(cx, |player, cx| match command {
                         MediaCommand::Play => player.play(cx),
                         MediaCommand::Stop if player.is_seekable() => player.stop(cx),
-                        _ => player.pause(cx),
+                        _ => {
+                            player.pause(cx);
+                            Ok(())
+                        }
                     }) {
                         self.error = Some(error.to_string());
                     }

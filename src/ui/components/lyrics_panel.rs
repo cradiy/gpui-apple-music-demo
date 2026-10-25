@@ -1033,83 +1033,86 @@ fn lyric_row(
         .map_or(std::slice::from_ref(line), |rows| {
             rows[index].primary.as_slice()
         });
-    let highlighted = div()
-        .w_full()
-        .flex()
-        .flex_col()
-        .children(parts.iter().map(|part| {
-            let units = if context.mobile_rows.is_some() && !part.words.is_empty() {
-                Some(
-                    part.words
-                        .iter()
-                        .map(|word| {
-                            TimedTextUnit::new(word.range.clone(), word.start, word.end)
-                                .group(word.group)
-                        })
-                        .collect(),
-                )
-            } else {
-                timed_text_units(part)
-            };
-            if let Some(units) = units
-                && context.active == Some(index)
-            {
-                TimedText::new(part.text.clone(), units)
-                    .position(context.position)
-                    .active_fill(rgb(0xffffff))
-                    .inactive_opacity(1.)
-                    .progressive_lift(px(if context.large { 3. } else { 1. } * activation))
-                    .w_full()
-                    .line_height(relative(1.3))
-                    .reveal_wave_width(px(8.))
-                    .font_weight(FontWeight::BOLD)
-                    .text_color(rgba(
-                        0xffffff00
-                            | (visual.resting_alpha.value.clamp(0., 1.) * 255.).round() as u32,
-                    ))
-                    .into_any_element()
-            } else {
-                lyric_text(part.text.clone(), blur_radius, blur_amount)
-                    .w_full()
-                    .line_height(relative(1.3))
-                    .font_weight(FontWeight::BOLD)
-                    .text_color(text_color)
-                    .into_any_element()
-            }
-        }))
-        .into_any_element();
-    let highlighted = if activation > 0.001 {
-        subtree_bloom(
-            highlighted,
-            BloomOptions {
-                threshold: 0.75,
-                soft_knee: 0.1,
-                intensity: 0.28 * activation,
-                radius: px(if context.large { 7. } else { 5. } * context.scale),
-                downsample: 2,
-            },
-        )
-        .into_any_element()
-    } else {
-        highlighted
-    };
-    let primary =
-        if context.mode == LyricsMode::Plain {
-            div()
-                .font_weight(FontWeight::BOLD)
-                .children(parts.iter().map(|part| div().child(part.text.clone())))
-                .into_any_element()
+    // Build the extra weight and reveal layers only while they contribute.
+    let highlighted = || {
+        let highlighted = div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .children(parts.iter().map(|part| {
+                let units = if context.active != Some(index) {
+                    None
+                } else if context.mobile_rows.is_some() && !part.words.is_empty() {
+                    Some(
+                        part.words
+                            .iter()
+                            .map(|word| {
+                                TimedTextUnit::new(word.range.clone(), word.start, word.end)
+                                    .group(word.group)
+                            })
+                            .collect(),
+                    )
+                } else {
+                    timed_text_units(part)
+                };
+                if let Some(units) = units {
+                    TimedText::new(part.text.clone(), units)
+                        .position(context.position)
+                        .active_fill(rgb(0xffffff))
+                        .inactive_opacity(1.)
+                        .progressive_lift(px(if context.large { 3. } else { 1. } * activation))
+                        .w_full()
+                        .line_height(relative(1.3))
+                        .reveal_wave_width(px(8.))
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(rgba(
+                            0xffffff00
+                                | (visual.resting_alpha.value.clamp(0., 1.) * 255.).round() as u32,
+                        ))
+                        .into_any_element()
+                } else {
+                    lyric_text(part.text.clone(), blur_radius, blur_amount)
+                        .w_full()
+                        .line_height(relative(1.3))
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(text_color)
+                        .into_any_element()
+                }
+            }))
+            .into_any_element();
+        if activation > 0.001 {
+            subtree_bloom(
+                highlighted,
+                BloomOptions {
+                    threshold: 0.75,
+                    soft_knee: 0.1,
+                    intensity: 0.28 * activation,
+                    radius: px(if context.large { 7. } else { 5. } * context.scale),
+                    downsample: 2,
+                },
+            )
+            .into_any_element()
         } else {
-            div()
-                .relative()
-                .w_full()
-                .h(px(context
-                    .mobile_rows
-                    .as_ref()
-                    .map_or(active_text_size * 1.3, |rows| {
-                        rows[index].primary_height
-                    })))
-                .child(
+            highlighted
+        }
+    };
+    let primary = if context.mode == LyricsMode::Plain {
+        div()
+            .font_weight(FontWeight::BOLD)
+            .children(parts.iter().map(|part| div().child(part.text.clone())))
+            .into_any_element()
+    } else {
+        div()
+            .relative()
+            .w_full()
+            .h(px(context
+                .mobile_rows
+                .as_ref()
+                .map_or(active_text_size * 1.3, |rows| {
+                    rows[index].primary_height
+                })))
+            .when(emphasis < 1., |primary| {
+                primary.child(
                     div()
                         .absolute()
                         .left_0()
@@ -1126,19 +1129,20 @@ fn lyric_row(
                             },
                         ))),
                 )
-                .when(emphasis > 0.001, |primary| {
-                    primary.child(
-                        div()
-                            .absolute()
-                            .left_0()
-                            .top_0()
-                            .w_full()
-                            .opacity(emphasis)
-                            .child(highlighted),
-                    )
-                })
-                .into_any_element()
-        };
+            })
+            .when(emphasis > 0.001, |primary| {
+                primary.child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .top_0()
+                        .w_full()
+                        .opacity(emphasis)
+                        .child(highlighted()),
+                )
+            })
+            .into_any_element()
+    };
     // Keep the glyph atlas at endpoint sizes. Only the short emphasis transition
     // needs a paint-time scale, rather than a new font size on every frame.
     let primary = if mobile_scale && emphasis > 0.001 && emphasis < 0.999 {

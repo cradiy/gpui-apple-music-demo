@@ -1,5 +1,5 @@
 use super::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uic::components::{
     reorderable_list::ReorderState,
     swipe_actions::{SwipeActionsState, SwipeDirection, SwipeTriggered},
@@ -35,11 +35,8 @@ pub(super) struct QueueUi {
 pub(super) const QUEUE_HEADER_TRAVEL: f32 = 86.;
 
 impl MobileApp {
-    pub(super) fn upcoming_queue(&self) -> Vec<&QueueEntry> {
-        self.queue
-            .iter()
-            .skip(self.queue_position().map_or(0, |index| index + 1))
-            .collect()
+    pub(super) fn upcoming_queue(&self) -> &[QueueEntry] {
+        &self.queue[self.queue_position().map_or(0, |index| index + 1)..]
     }
 
     pub(super) fn prepare_queue(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -48,8 +45,16 @@ impl MobileApp {
             rows: HashMap::new(),
             header_offset: 0.,
         });
-        ui.rows
-            .retain(|key, _| self.queue.iter().any(|entry| &entry.key == key));
+        if ui.rows.len() == self.queue.len()
+            && self
+                .queue
+                .iter()
+                .all(|entry| ui.rows.contains_key(&entry.key))
+        {
+            return;
+        }
+        let keys: HashSet<_> = self.queue.iter().map(|entry| &entry.key).collect();
+        ui.rows.retain(|key, _| keys.contains(key));
         for entry in &self.queue {
             if ui.rows.contains_key(&entry.key) {
                 continue;

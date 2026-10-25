@@ -1,5 +1,8 @@
+mod error;
 mod output;
 mod player;
+#[cfg(test)]
+mod tests;
 
 use super::*;
 use gpui_effects::{LiquidGlass, LiquidGlassAppearance};
@@ -19,6 +22,15 @@ struct Layout {
     h: f32,
 }
 impl Layout {
+    fn for_window(window: &Window) -> Self {
+        let insets = window.insets().effective();
+        let size = window.viewport_size();
+        Self {
+            s: (size.width - insets.left - insets.right).as_f32() / 392.,
+            h: (size.height - insets.top - insets.bottom).as_f32(),
+        }
+    }
+
     fn rect(self, x: f32, y: f32, w: f32, h: f32) -> Div {
         div()
             .absolute()
@@ -736,7 +748,7 @@ impl MobileApp {
             .size_full()
             .enabled(!ui.rows.values().any(|row| row.removing))
             .on_reorder(cx.listener(move |this, event: &ReorderEvent, _, cx| {
-                let mut entries: Vec<_> = this.upcoming_queue().into_iter().cloned().collect();
+                let mut entries = this.upcoming_queue().to_vec();
                 if entries
                     .get(event.from)
                     .is_some_and(|entry| ElementId::from(entry.key.clone()) == event.id)
@@ -1198,6 +1210,40 @@ impl MobileApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Div {
+        if matches!(page, Page::NowPlaying | Page::EditLyrics | Page::SongInfo) {
+            return self.render_page_scene(page, l, window, cx);
+        }
+        let owner = cx.entity().downgrade();
+        let scene = self
+            .browse_scenes
+            .entry(page)
+            .or_insert_with(|| {
+                cx.new(|_| BrowseScene {
+                    owner,
+                    page,
+                    #[cfg(test)]
+                    renders: 0,
+                })
+            })
+            .clone();
+        // Keep the same view identity in both paths to preserve list scroll state.
+        let content = if self.page == Page::NowPlaying && self.player_dismiss.active() {
+            scene
+                .cached(div().size_full().style().clone())
+                .into_any_element()
+        } else {
+            scene.into_any_element()
+        };
+        div().size_full().child(content)
+    }
+
+    fn render_page_scene(
+        &mut self,
+        page: Page,
+        l: Layout,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Div {
         let insets = window.insets().effective();
         let collapse = if page == Page::NowPlaying {
             self.player_dismiss
@@ -1313,8 +1359,52 @@ impl MobileApp {
     }
 }
 
+pub(super) struct BrowseScene {
+    owner: WeakEntity<MobileApp>,
+    page: Page,
+    #[cfg(test)]
+    renders: usize,
+}
+
+impl Render for BrowseScene {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        #[cfg(test)]
+        {
+            self.renders += 1;
+        }
+        let l = Layout::for_window(window);
+        self.owner
+            .update(cx, |app, cx| {
+                app.render_page_scene(self.page, l, window, cx)
+            })
+            .unwrap_or_else(|_| div().size_full())
+    }
+}
+
 impl Render for MobileApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        #[cfg(target_os = "android")]
+        if !self.backdrop_prepare_started {
+            self.backdrop_prepare_started = true;
+            let view = cx.entity().downgrade();
+            window.on_next_frame(move |window, cx| {
+                let _ = view.update(cx, |_, cx| {
+                    let preparation = gpui_effects::prepare_artwork_flow(window, cx);
+                    cx.spawn(async move |this, cx| match preparation.await {
+                        Ok(_) => {
+                            let _ = this.update(cx, |this, cx| {
+                                this.backdrop_prepared = true;
+                                cx.notify();
+                            });
+                        }
+                        Err(error) => {
+                            log::warn!("Could not prepare artwork effects: {error:#}")
+                        }
+                    })
+                    .detach();
+                });
+            });
+        }
         if self.window_subscription.is_none() {
             self.window_active = window.is_window_active();
             self.window_subscription =
@@ -1334,6 +1424,13 @@ impl Render for MobileApp {
                     }
                 }));
         }
+        if self.error.is_some() && !modal::is_open(cx) {
+            let view = cx.entity().downgrade();
+            window.on_next_frame(move |window, cx| {
+                let _ = view.update(cx, |this, cx| this.show_pending_error(window, cx));
+            });
+            window.request_animation_frame();
+        }
         window.set_back_enabled(modal::is_open(cx) || !self.page.is_tab());
         if self.page != Page::NowPlaying {
             self.backdrop_sampled_at = None;
@@ -1343,10 +1440,7 @@ impl Render for MobileApp {
         }
         let insets = window.insets().effective();
         let size = window.viewport_size();
-        let l = Layout {
-            s: (size.width - insets.left - insets.right).as_f32() / 392.,
-            h: (size.height - insets.top - insets.bottom).as_f32(),
-        };
+        let l = Layout::for_window(window);
         let (player_offset, player_moving, player_closed) =
             self.player_dismiss.sample(Instant::now());
         if player_closed {
@@ -1522,14 +1616,6 @@ impl Render for MobileApp {
                     )
                 },
             )
-            .when_some(self.error.clone(), |root, error| {
-                root.child(
-                    l.rect(24., l.bottom(540.), 344., 48.)
-                        .text_size(px(11. * l.s))
-                        .text_color(rgb(ACCENT))
-                        .child(error),
-                )
-            })
             .child(modal::layer(cx))
     }
 }

@@ -235,7 +235,7 @@ impl MobileApp {
             .unwrap_or_else(|| crate::ui::components::now_playing::fallback_cover().into());
         match source.use_data(None, window, cx) {
             Some(Ok(image)) if image.frame_count() > 0 => {
-                self.visible_artwork = Some(ImageSource::Render(image))
+                self.visible_artwork = Some(ImageSource::Render(image));
             }
             Some(_) => {
                 let fallback =
@@ -246,6 +246,7 @@ impl MobileApp {
             }
             None => {}
         }
+        self.player_dismiss.prepare_opening_frame(window);
         let animate = window.is_window_active() && !modal::is_open(cx) && self.playing(cx);
         let now = Instant::now();
         if animate {
@@ -275,17 +276,33 @@ impl MobileApp {
             self.backdrop_sampled_at = None;
             self.backdrop_frame = None;
         }
+        #[cfg(target_os = "android")]
+        if !self.backdrop_prepared {
+            return None;
+        }
+        #[cfg(target_os = "android")]
+        let opacity = self.backdrop_reveal.sample(1., window);
+        #[cfg(not(target_os = "android"))]
+        let opacity = 1.;
         self.visible_artwork.clone().map(|artwork| {
-            let elapsed = self.backdrop_elapsed;
+            let elapsed = self.backdrop_elapsed * 0.5;
             let progress = self
                 .player_dismiss
                 .progress(window.viewport_size().height.as_f32());
             let scale = window.viewport_size().width.as_f32() / 392.;
-            crate::ui::components::now_playing::render_background_rounded(
-                artwork,
-                elapsed,
-                px(14. * scale * progress),
-            )
+            div()
+                .size_full()
+                .opacity(opacity)
+                .child(
+                    crate::ui::components::now_playing::render_background_rounded(
+                        artwork,
+                        elapsed,
+                        px(14. * scale * progress),
+                        4,
+                    )
+                    .adaptive_layout(true),
+                )
+                .into_any_element()
         })
     }
 
@@ -338,7 +355,7 @@ impl MobileApp {
                     this.navigate(this.return_page, w, cx);
                 })),
         );
-        if controls_position < 1. {
+        if controls_position < 1. && full_opacity > 0. {
             d = d.child(
                 self.controls(l, cx)
                     .top(px(controls_y * l.s))

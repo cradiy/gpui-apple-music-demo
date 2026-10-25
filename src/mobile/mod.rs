@@ -11,15 +11,9 @@ use crate::domain::lyrics::LyricsDocument;
 use crate::ui::components::lyrics_panel::{self, LyricsPanelState};
 use gpui::{prelude::*, *};
 use gpui_media::PlaybackState;
-#[cfg(not(target_os = "android"))]
 use gpui_media::{
     AudioPlayer as Player, AudioPlayerEvent as PlayerEvent, AudioPlayerOptions as PlayerOptions,
     AudioSource as Source,
-};
-#[cfg(target_os = "android")]
-use gpui_media::{
-    MediaSource as Source, VideoPlayer as Player, VideoPlayerEvent as PlayerEvent,
-    VideoPlayerOptions as PlayerOptions,
 };
 use library::{Library, Track};
 use queue::{QueueEntry, QueueUi};
@@ -33,7 +27,7 @@ use uic::components::{
     slider::{SliderEvent, SliderState},
 };
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Page {
     Home,
     Discover,
@@ -72,12 +66,17 @@ enum Sheet {
 pub struct MobileApp {
     page: Page,
     page_motion: Option<motion::PageMotion>,
+    browse_scenes: std::collections::HashMap<Page, Entity<view::BrowseScene>>,
     player_dismiss: motion::PlayerDismiss,
     return_page: Page,
     library_tab: LibraryTab,
     library: Option<Library>,
     player: Option<Entity<Player>>,
     player_subscription: Option<Subscription>,
+    #[cfg(target_os = "android")]
+    player_load: Option<Task<()>>,
+    #[cfg(target_os = "android")]
+    play_when_loaded: bool,
     #[cfg(target_os = "android")]
     system_media: system_media::SystemMedia,
     current: Option<String>,
@@ -99,6 +98,12 @@ pub struct MobileApp {
     backdrop_elapsed: f32,
     backdrop_sampled_at: Option<Instant>,
     backdrop_frame: Option<Task<()>>,
+    #[cfg(target_os = "android")]
+    backdrop_prepare_started: bool,
+    #[cfg(target_os = "android")]
+    backdrop_prepared: bool,
+    #[cfg(target_os = "android")]
+    backdrop_reveal: motion::ValueMotion,
     window_active: bool,
     window_subscription: Option<Subscription>,
     search: Entity<TextInput>,
@@ -192,12 +197,17 @@ impl MobileApp {
         Self {
             page: Page::Home,
             page_motion: None,
+            browse_scenes: std::collections::HashMap::new(),
             player_dismiss: motion::PlayerDismiss::default(),
             return_page: Page::Home,
             library_tab: LibraryTab::Songs,
             library: None,
             player: None,
             player_subscription: None,
+            #[cfg(target_os = "android")]
+            player_load: None,
+            #[cfg(target_os = "android")]
+            play_when_loaded: true,
             #[cfg(target_os = "android")]
             system_media: system_media::SystemMedia::default(),
             current: None,
@@ -219,6 +229,12 @@ impl MobileApp {
             backdrop_elapsed: 0.,
             backdrop_sampled_at: None,
             backdrop_frame: None,
+            #[cfg(target_os = "android")]
+            backdrop_prepare_started: false,
+            #[cfg(target_os = "android")]
+            backdrop_prepared: false,
+            #[cfg(target_os = "android")]
+            backdrop_reveal: motion::ValueMotion::new(0.),
             window_active: true,
             window_subscription: None,
             search,
@@ -402,33 +418,19 @@ impl MobileApp {
             }
         };
         #[cfg(target_os = "android")]
-        if let Err(error) = gpui_media_backend::SystemBackend::initialize() {
-            self.error = Some(error.to_string());
-            cx.notify();
-            return;
+        {
+            self.player_load = None;
+            self.play_when_loaded = true;
         }
         self.player_subscription = None;
         self.player = None;
         let options = PlayerOptions {
             volume: self.volume_slider.read(cx).value(),
             timeline_update_interval: Duration::from_millis(250),
+            #[cfg(target_os = "android")]
+            autoplay: false,
             ..Default::default()
         };
-        let player = cx.new(|cx| {
-            #[cfg(target_os = "android")]
-            let player = Player::builder(source, gpui_media_backend::SystemBackend)
-                .options(options)
-                .build(cx);
-            #[cfg(not(target_os = "android"))]
-            let player = Player::new(source, options, cx);
-            player.expect("failed to create media player")
-        });
-        #[cfg(target_os = "android")]
-        if let Err(error) = player.update(cx, |player, _| {
-            player.set_wake_mode(gpui_media::PlaybackWakeMode::Local)
-        }) {
-            log::warn!("Could not enable playback wake lock: {error}");
-        }
         self.current = Some(id.to_owned());
         if !self.queue.iter().any(|queued| queued.track_id == id) {
             self.queue = self
@@ -449,6 +451,54 @@ impl MobileApp {
         self.recent.insert(0, id.to_owned());
         self.update_lyrics();
         self.error = None;
+        #[cfg(target_os = "android")]
+        {
+            let id = id.to_owned();
+            let preparation = cx
+                .background_executor()
+                .spawn(async move { Player::builder(source).options(options).prepare() });
+            self.player_load = Some(cx.spawn(async move |this, cx| {
+                let result = preparation.await;
+                let _ = this.update(cx, |this, cx| {
+                    if this.current.as_ref() != Some(&id) {
+                        return;
+                    }
+                    this.player_load = None;
+                    match result {
+                        Ok(prepared) => {
+                            let player = cx.new(|cx| prepared.build(cx));
+                            this.attach_player(player, cx);
+                        }
+                        Err(error) => {
+                            this.error = Some(error.to_string());
+                            cx.notify();
+                        }
+                    }
+                });
+            }));
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let player = cx
+                .new(|cx| Player::new(source, options, cx).expect("failed to create media player"));
+            self.attach_player(player, cx);
+        }
+        cx.notify();
+    }
+
+    fn attach_player(&mut self, player: Entity<Player>, cx: &mut Context<Self>) {
+        #[cfg(target_os = "android")]
+        player.update(cx, |player, cx| {
+            player.set_volume(self.volume_slider.read(cx).value(), cx);
+            if let Err(error) = player.set_wake_mode(gpui_media::PlaybackWakeMode::Local, cx) {
+                log::warn!("Could not enable playback wake lock: {error}");
+            }
+            if self.play_when_loaded
+                && let Err(error) = player.play(cx)
+            {
+                self.error = Some(error.to_string());
+            }
+        });
         self.player_subscription = Some(cx.subscribe(&player, |this, _, event, cx| {
             let timeline_visible = this.window_active
                 && this.page == Page::NowPlaying
@@ -495,8 +545,22 @@ impl MobileApp {
     }
 
     fn toggle(&mut self, cx: &mut Context<Self>) {
+        if self
+            .player
+            .as_ref()
+            .is_some_and(|player| matches!(player.read(cx).state(), PlaybackState::Error(_)))
+        {
+            if let Some(id) = self.current.clone() {
+                self.play_track(&id, cx);
+            }
+            return;
+        }
         #[cfg(target_os = "android")]
         self.retry_background_playback();
+        #[cfg(target_os = "android")]
+        if self.player_load.is_some() {
+            self.play_when_loaded = !self.play_when_loaded;
+        }
         if let Some(player) = &self.player {
             if let Err(error) = player.update(cx, |player, cx| player.toggle_playback(cx)) {
                 self.error = Some(error.to_string());
@@ -652,6 +716,10 @@ impl MobileApp {
     }
 
     fn playing(&self, cx: &App) -> bool {
+        #[cfg(target_os = "android")]
+        if self.player_load.is_some() {
+            return self.play_when_loaded;
+        }
         self.player.as_ref().is_some_and(|player| {
             matches!(
                 player.read(cx).state(),

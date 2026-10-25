@@ -47,6 +47,11 @@
           "type": "string"
         },
         {
+          "const": "audio-playback",
+          "description": "Focus, noisy-output events and playback wake locks for application-owned audio. Independent of media and Media3. Declare WAKE_LOCK when selecting a playback wake mode.",
+          "type": "string"
+        },
+        {
           "const": "notifications",
           "description": "General system notifications, action buttons and inline replies. Declare POST_NOTIFICATIONS and request runtime authorization when required by Android.",
           "type": "string"

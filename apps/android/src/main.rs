@@ -1,8 +1,9 @@
 use gpui::{AppContext, Bounds, WindowBounds, WindowOptions, px, size};
 use gpui_apple_music_demo::{mobile::MobileApp, resources::assets::AppAssets};
 
-#[gpui_platform::main]
+#[gpui_platform::main(android_log_level = log::LevelFilter::Info)]
 fn main() {
+    #[cfg(not(target_os = "android"))]
     log::set_max_level(if cfg!(debug_assertions) {
         log::LevelFilter::Debug
     } else {

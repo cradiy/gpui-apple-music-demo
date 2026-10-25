@@ -26,7 +26,7 @@
       ],
       "features": [
         "files",
-        "media",
+        "audio-playback",
         "background-media",
         "audio-routing"
       ],

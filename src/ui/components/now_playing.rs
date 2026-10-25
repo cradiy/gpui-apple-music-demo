@@ -69,20 +69,21 @@ impl PanelTransition {
 }
 
 pub(crate) fn render_background(artwork: ImageSource, elapsed: f32) -> AnyElement {
-    render_background_rounded(artwork, elapsed, px(0.))
+    render_background_rounded(artwork, elapsed, px(0.), 1).into_any_element()
 }
 
 pub(crate) fn render_background_rounded(
     artwork: ImageSource,
     elapsed: f32,
     radius: gpui::Pixels,
-) -> AnyElement {
+    downsample: u32,
+) -> gpui_effects::ArtworkFlow {
     artwork_flow("player-artwork-background", artwork)
+        .downsample(downsample)
         .options(ArtworkFlowOptions::default().motion(1.5).dither(2.))
         .time(elapsed)
         .size_full()
         .rounded(radius)
-        .into_any_element()
 }
 
 pub fn render(
